@@ -10,17 +10,26 @@ export function KpiGrid() {
   
   const presentToday = mockAttendance.filter(a => a.date === latestDateStr && a.status === "Present").length;
 
-  const attendanceLeaveCount = mockAttendance.filter(a => a.date === latestDateStr && a.status === "Leave").length;
+  const onLeaveEmpIds = new Set<string>();
+
+  mockAttendance.forEach(a => {
+    if (a.date === latestDateStr && a.status === "Leave") {
+      onLeaveEmpIds.add(a.employeeId);
+    }
+  });
   
   const todayStr = new Date().toISOString().split('T')[0];
-  const approvedLeavesCount = mockLeaveRequests.filter(req => {
-    if (req.status !== "Approved") return false;
-    const startStr = req.startDate.split('T')[0];
-    const endStr = req.endDate.split('T')[0];
-    return todayStr >= startStr && todayStr <= endStr;
-  }).length;
+  mockLeaveRequests.forEach(req => {
+    if (req.status === "Approved") {
+      const startStr = req.startDate.split('T')[0];
+      const endStr = req.endDate.split('T')[0];
+      if (todayStr >= startStr && todayStr <= endStr) {
+        onLeaveEmpIds.add(req.employeeId);
+      }
+    }
+  });
   
-  const onLeaveCount = attendanceLeaveCount + approvedLeavesCount;
+  const onLeaveCount = onLeaveEmpIds.size;
 
   const pendingApprovals = mockLeaveRequests.filter(req => req.status === "Pending").length;
 
