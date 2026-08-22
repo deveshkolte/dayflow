@@ -1,0 +1,166 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { LeaveRequest, LeaveStatus, LeaveType, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma.service';
+import { AuthenticatedUser } from '../auth/auth.types';
+import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
+import { LeaveDecisionDto } from './dto/leave-decision.dto';
+
+// LeaveService contains the persisted leave workflow and its business rules.
+@Injectable()
+export class LeaveService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(employee: AuthenticatedUser, input: CreateLeaveRequestDto) {
+    const startDate = this.parseDateOnly(input.startDate, 'startDate');
+    const endDate = this.parseDateOnly(input.endDate, 'endDate');
+
+    if (startDate > endDate) {
+      throw new BadRequestException('The leave end date cannot precede the start date.');
+    }
+
+    const duplicate = await this.prisma.leaveRequest.findFirst({
+      where: {
+        employeeId: employee.id,
+        startDate,
+        endDate,
+        type: input.type,
+        status: LeaveStatus.PENDING,
+      },
+    });
+
+    if (duplicate) {
+      throw new ConflictException('An identical pending leave request already exists.');
+    }
+
+    const leaveRequest = await this.prisma.leaveRequest.create({
+      data: {
+        employeeId: employee.id,
+        startDate,
+        endDate,
+        type: input.type,
+        reason: input.reason?.trim() || null,
+      },
+      include: { employee: true },
+    });
+
+    return this.serialize(leaveRequest);
+  }
+
+  async findMine(employeeId: string) {
+    const requests = await this.prisma.leaveRequest.findMany({
+      where: { employeeId },
+      include: { employee: true, approver: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return requests.map((request) => this.serialize(request));
+  }
+
+  async findAll(status?: LeaveStatus, type?: LeaveType) {
+    const requests = await this.prisma.leaveRequest.findMany({
+      where: { status, type },
+      include: { employee: true, approver: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return requests.map((request) => this.serialize(request));
+  }
+
+  async decide(id: string, actor: AuthenticatedUser, input: LeaveDecisionDto) {
+    const status = input.decision === 'APPROVE' ? LeaveStatus.APPROVED : LeaveStatus.REJECTED;
+
+    const result = await this.prisma.$transaction(async (transaction) => {
+      const request = await transaction.leaveRequest.findUnique({
+        where: { id },
+        include: { employee: true, approver: true },
+      });
+
+      if (!request) {
+        throw new NotFoundException('Leave request not found.');
+      }
+
+      if (request.status !== LeaveStatus.PENDING) {
+        throw new ConflictException('This leave request has already been finalized.');
+      }
+
+      if (request.employeeId === actor.id) {
+        throw new BadRequestException('An employee cannot approve their own leave request.');
+      }
+
+      const updated = await transaction.leaveRequest.update({
+        where: { id },
+        data: {
+          status,
+          approverId: actor.id,
+          approverComment: input.comment?.trim() || null,
+        },
+        include: { employee: true, approver: true },
+      });
+
+      // The audit row is written in the same transaction as the decision.
+      await transaction.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: status === LeaveStatus.APPROVED ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED',
+          entity: 'LeaveRequest',
+          metadata: {
+            leaveRequestId: id,
+            employeeId: request.employeeId,
+            previousStatus: request.status,
+            newStatus: status,
+            comment: input.comment?.trim() || null,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      return updated;
+    });
+
+    return this.serialize(result);
+  }
+
+  private parseDateOnly(value: string, fieldName: string): Date {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException(`${fieldName} must use YYYY-MM-DD format.`);
+    }
+
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+      throw new BadRequestException(`${fieldName} is not a valid calendar date.`);
+    }
+
+    return parsed;
+  }
+
+  private serialize(
+    request: LeaveRequest & {
+      employee?: { id: string; employeeId: string; firstName: string | null; lastName: string | null };
+      approver?: { firstName: string | null; lastName: string | null } | null;
+    },
+  ) {
+    return {
+      id: request.id,
+      employeeId: request.employee?.employeeId ?? request.employeeId,
+      employeeName: request.employee ? this.fullName(request.employee.firstName, request.employee.lastName) : null,
+      type: request.type,
+      startDate: request.startDate.toISOString().slice(0, 10),
+      endDate: request.endDate.toISOString().slice(0, 10),
+      status: request.status,
+      reason: request.reason,
+      approverComment: request.approverComment,
+      approverName: request.approver ? this.fullName(request.approver.firstName, request.approver.lastName) : null,
+      createdAt: request.createdAt.toISOString(),
+      updatedAt: request.updatedAt.toISOString(),
+    };
+  }
+
+  private fullName(firstName: string | null, lastName: string | null) {
+    return [firstName, lastName].filter(Boolean).join(' ') || 'Unnamed employee';
+  }
+}

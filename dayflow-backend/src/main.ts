@@ -2,10 +2,15 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   dotenv.config();
   const app = await NestFactory.create(AppModule);
+  // Global validation prevents malformed requests from reaching business logic.
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  // The frontend is a separate local origin, so its API calls need explicit CORS access.
+  app.enableCors({ origin: process.env.CLIENT_URL?.split(',').map((value) => value.trim()) ?? true });
   app.setGlobalPrefix('api');
   const port = process.env.PORT ? Number(process.env.PORT) : 4000;
   await app.listen(port);
