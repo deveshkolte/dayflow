@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Aboreto&family=Lato:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Aboreto&family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400;1,700&family=Playfair+Display:ital,wght@1,500;1,600&display=swap');
 @import 'tailwindcss';
 
 :root {
@@ -13,6 +13,10 @@
   --dayflow-cream: #f5f1e7;
   --dayflow-soft: #eae5dc;
   --dayflow-ink-dark: #394032;
+
+  --dayflow-display-font: 'Aboreto', Georgia, serif;
+  --dayflow-italic-font: 'Playfair Display', 'Arepy Italic', Georgia, serif;
+  --dayflow-body-font: 'Lato', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 @theme {
@@ -29,39 +33,37 @@
   --color-dayflow-ink-dark: var(--dayflow-ink-dark);
 }
 
-:root {
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  --dayflow-display-font: 'Aboreto', Georgia, serif;
-  --dayflow-body-font: 'Lato', 'Segoe UI', system-ui, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color: var(--dayflow-ink);
-  background: var(--dayflow-bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html {
   background: var(--dayflow-bg);
+  color: var(--dayflow-ink);
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+  font-family: var(--dayflow-body-font);
   background: var(--dayflow-bg);
+  color: var(--dayflow-ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
+h1, h2, h3, .font-display {
+  font-family: var(--dayflow-display-font);
+  letter-spacing: -0.01em;
+}
+
+.font-italic-accent {
+  font-family: var(--dayflow-italic-font);
+  font-style: italic;
 }
 
 button {
-  font: inherit;
-}
-
-#root {
-  min-height: 100vh;
+  font-family: inherit;
+  cursor: pointer;
 }

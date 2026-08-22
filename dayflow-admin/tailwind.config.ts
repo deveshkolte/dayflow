@@ -9,7 +9,25 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ["Aboreto", "Georgia", "serif"],
+        body: ["Lato", "system-ui", "-apple-system", "sans-serif"],
+        italic: ["Playfair Display", "Georgia", "serif"],
+      },
       colors: {
+        dayflow: {
+          bg: "#F7F6F1",
+          card: "#FFFFFF",
+          ink: "#534332",
+          secondary: "#6D6A61",
+          border: "#DED9CF",
+          primary: "#454F2D",
+          muted: "#797F3E",
+          accent: "#9F7E4A",
+          cream: "#F5F1E7",
+          soft: "#EAE5DC",
+          dark: "#394032",
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {
@@ -43,13 +61,6 @@ const config: Config = {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
-        chart: {
-          "1": "hsl(var(--chart-1))",
-          "2": "hsl(var(--chart-2))",
-          "3": "hsl(var(--chart-3))",
-          "4": "hsl(var(--chart-4))",
-          "5": "hsl(var(--chart-5))",
-        },
       },
       borderRadius: {
         lg: "var(--radius)",
