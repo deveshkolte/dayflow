@@ -215,7 +215,7 @@ export function LeaveApprovalTable() {
                       <TableCell className="py-3.5">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8 border border-[#9F7E4A]/50">
-                            <AvatarImage src={emp?.profilePictureUrl || undefined} alt={req.employeeName} />
+                            <AvatarImage src={(emp?.profilePictureUrl || undefined) || undefined} alt={req.employeeName} />
                             <AvatarFallback className="bg-[#454F2D] text-white text-xs font-bold">
                               {req.employeeName.substring(0, 2).toUpperCase()}
                             </AvatarFallback>
