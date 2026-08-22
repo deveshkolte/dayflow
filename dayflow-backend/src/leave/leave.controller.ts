@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   Req,
+  ParseEnumPipe,
   UseGuards,
 } from '@nestjs/common';
 import { LeaveStatus, LeaveType, Role } from '@prisma/client';
@@ -36,7 +37,10 @@ export class LeaveController {
 
   @Get('admin/leave')
   @Roles(Role.HR, Role.ADMIN)
-  async all(@Query('status') status?: LeaveStatus, @Query('type') type?: LeaveType) {
+  async all(
+    @Query('status', new ParseEnumPipe(LeaveStatus, { optional: true })) status?: LeaveStatus,
+    @Query('type', new ParseEnumPipe(LeaveType, { optional: true })) type?: LeaveType,
+  ) {
     return { success: true, data: await this.leaveService.findAll(status, type) };
   }
 

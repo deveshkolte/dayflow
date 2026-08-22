@@ -37,15 +37,35 @@ export class LeaveService {
       throw new ConflictException('An identical pending leave request already exists.');
     }
 
-    const leaveRequest = await this.prisma.leaveRequest.create({
-      data: {
-        employeeId: employee.id,
-        startDate,
-        endDate,
-        type: input.type,
-        reason: input.reason?.trim() || null,
-      },
-      include: { employee: true },
+    // Persist the request and its audit event together so the workflow is traceable.
+    const leaveRequest = await this.prisma.$transaction(async (transaction) => {
+      const created = await transaction.leaveRequest.create({
+        data: {
+          employeeId: employee.id,
+          startDate,
+          endDate,
+          type: input.type,
+          reason: input.reason?.trim() || null,
+        },
+        include: { employee: true },
+      });
+
+      await transaction.auditLog.create({
+        data: {
+          actorId: employee.id,
+          action: 'LEAVE_SUBMITTED',
+          entity: 'LeaveRequest',
+          metadata: {
+            leaveRequestId: created.id,
+            employeeId: employee.id,
+            startDate: input.startDate,
+            endDate: input.endDate,
+            type: input.type,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      return created;
     });
 
     return this.serialize(leaveRequest);
