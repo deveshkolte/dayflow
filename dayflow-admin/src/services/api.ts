@@ -129,13 +129,41 @@ export async function decideLeaveRequest(id: string, decision: "APPROVE" | "REJE
   return mapLeaveRequest(request);
 }
 
-function mapEmployee(employee: any): Employee {
+interface ApiEmployee {
+  id: string;
+  employeeId: string;
+  fullName?: string;
+  email: string;
+  phone?: string | null;
+  department?: string | null;
+  designation?: string | null;
+  jobTitle?: string | null;
+  role: string;
+  isActive?: boolean;
+  createdAt?: string;
+  joiningDate?: string | Date | null;
+  profilePictureUrl?: string | null;
+  address?: string | null;
+  salaryStructure?: Employee["salaryStructure"];
+  documents?: Employee["documents"];
+}
+
+function mapEmployee(employee: ApiEmployee): Employee {
   return {
-    ...employee,
-    designation: employee.jobTitle || "",
-    status: employee.isActive ? "active" : "suspended",
-    joiningDate: employee.createdAt,
-    role: employee.role.toLowerCase(),
+    id: employee.id,
+    employeeId: employee.employeeId,
+    fullName: employee.fullName || employee.email.split("@")[0],
+    email: employee.email,
+    phone: employee.phone || "",
+    department: employee.department || "General",
+    designation: employee.designation || employee.jobTitle || "Employee",
+    role: (employee.role.toLowerCase() as "employee" | "admin" | "hr") || "employee",
+    status: employee.isActive === false ? "suspended" : "active",
+    joiningDate: employee.joiningDate ? new Date(employee.joiningDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+    profilePictureUrl: employee.profilePictureUrl || "",
+    address: employee.address || "",
+    salaryStructure: employee.salaryStructure || { basic: 50000, hra: 20000, allowances: 10000, deductions: 5000, netSalary: 75000 },
+    documents: employee.documents || [],
   };
 }
 
@@ -146,14 +174,18 @@ export async function getAdminEmployees(filters?: { search?: string; department?
   if (filters?.active !== undefined) query.set("active", filters.active.toString());
 
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  const employees = await apiRequest<any[]>(`/admin/employees${suffix}`);
+  const employees = await apiRequest<ApiEmployee[]>(`/admin/employees${suffix}`);
   return employees.map(mapEmployee);
 }
 
-export async function updateAdminEmployee(id: string, updates: { isActive?: boolean }) {
-  const employee = await apiRequest<any>(`/admin/employees/${id}`, {
+export async function updateAdminEmployee(id: string, updates: { status?: string; isActive?: boolean }) {
+  const payload: Record<string, unknown> = {};
+  if (updates.status !== undefined) payload.isActive = updates.status === "active";
+  if (updates.isActive !== undefined) payload.isActive = updates.isActive;
+
+  const employee = await apiRequest<ApiEmployee>(`/admin/employees/${id}`, {
     method: "PATCH",
-    body: JSON.stringify(updates),
+    body: JSON.stringify(payload),
   });
   return mapEmployee(employee);
 }
