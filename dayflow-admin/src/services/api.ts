@@ -1,4 +1,4 @@
-import { AuthenticatedUser, LeaveRequest } from "@/types";
+import { AuthenticatedUser, LeaveRequest, Employee } from "@/types";
 
 // The browser talks to the Nest API through one configurable base URL.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
@@ -127,4 +127,33 @@ export async function decideLeaveRequest(id: string, decision: "APPROVE" | "REJE
   });
 
   return mapLeaveRequest(request);
+}
+
+function mapEmployee(employee: any): Employee {
+  return {
+    ...employee,
+    designation: employee.jobTitle || "",
+    status: employee.isActive ? "active" : "suspended",
+    joiningDate: employee.createdAt,
+    role: employee.role.toLowerCase(),
+  };
+}
+
+export async function getAdminEmployees(filters?: { search?: string; department?: string; active?: boolean }) {
+  const query = new URLSearchParams();
+  if (filters?.search) query.set("search", filters.search);
+  if (filters?.department && filters.department !== "all") query.set("department", filters.department);
+  if (filters?.active !== undefined) query.set("active", filters.active.toString());
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const employees = await apiRequest<any[]>(`/admin/employees${suffix}`);
+  return employees.map(mapEmployee);
+}
+
+export async function updateAdminEmployee(id: string, updates: { isActive?: boolean }) {
+  const employee = await apiRequest<any>(`/admin/employees/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+  return mapEmployee(employee);
 }

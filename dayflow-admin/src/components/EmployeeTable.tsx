@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { mockEmployees } from "@/constants/mockData";
+import { useState, useMemo, useEffect } from "react";
+import { getAdminEmployees, updateAdminEmployee } from "@/services/api";
+import { handleApiError } from "@/lib/handleApiError";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Employee } from "@/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -45,7 +47,9 @@ type SortField = "fullName" | "department" | "designation" | "status" | null;
 type SortDirection = "asc" | "desc";
 
 export function EmployeeTable() {
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -55,7 +59,23 @@ export function EmployeeTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 7;
 
-  // Modal states
+  useEffect(() => {
+    async function loadEmployees() {
+      setLoading(true);
+      try {
+        const data = await getAdminEmployees({
+          search: searchQuery || undefined,
+          department: departmentFilter !== "all" ? departmentFilter : undefined,
+        });
+        setEmployees(data);
+      } catch (error) {
+        handleApiError(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadEmployees();
+  }, [searchQuery, departmentFilter, statusFilter]);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
@@ -86,8 +106,12 @@ export function EmployeeTable() {
     }
   };
 
-  const handleToggleStatus = (emp: Employee) => {
+  const handleToggleStatus = async (emp: Employee) => {
+    if (togglingStatusId) return;
+
+    setTogglingStatusId(emp.id);
     const newStatus = emp.status === "active" ? "suspended" : "active";
+<<<<<<< HEAD
     setEmployees((prev) =>
       prev.map((e) => (e.id === emp.id ? { ...e, status: newStatus } : e))
     );
@@ -96,6 +120,23 @@ export function EmployeeTable() {
       title: "Employee Status Updated",
       description: `${emp.fullName} has been set to ${newStatus.toUpperCase()}.`,
     });
+=======
+    const isActive = newStatus === "active";
+    
+    try {
+      await updateAdminEmployee(emp.id, { isActive });
+      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, status: newStatus } : e));
+      toast.add({
+        type: "success",
+        title: "Status Updated",
+        description: `${emp.fullName} is now ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}.`,
+      });
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setTogglingStatusId(null);
+    }
+>>>>>>> origin/feat/wire-employee-table
   };
 
   const handleEditClick = (emp: Employee) => {
@@ -323,10 +364,25 @@ export function EmployeeTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedEmployees.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-10 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                  </TableRow>
+                ))
+              ) : paginatedEmployees.length === 0 ? (
                 <TableRow>
+<<<<<<< HEAD
                   <TableCell colSpan={5} className="h-32 text-center text-[#6D6A61]">
                     No employees matching the criteria found.
+=======
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    No employees found matching your criteria.
+>>>>>>> origin/feat/wire-employee-table
                   </TableCell>
                 </TableRow>
               ) : (
@@ -372,6 +428,7 @@ export function EmployeeTable() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 rounded-xl border-[#DED9CF]">
                           <DropdownMenuGroup>
+<<<<<<< HEAD
                             <DropdownMenuItem
                               onClick={() => setViewingEmployee(emp)}
                               className="cursor-pointer text-xs font-semibold gap-2"
@@ -393,6 +450,11 @@ export function EmployeeTable() {
                             >
                               <Power className="h-3.5 w-3.5 text-[#9F7E4A]" />
                               {emp.status === "active" ? "Suspend Access" : "Activate Access"}
+=======
+                            <DropdownMenuItem onClick={() => handleEditClick(emp)}>Edit</DropdownMenuItem>
+                            <DropdownMenuItem disabled={togglingStatusId === emp.id} onClick={() => handleToggleStatus(emp)}>
+                              {togglingStatusId === emp.id ? "Updating..." : "Toggle Status"}
+>>>>>>> origin/feat/wire-employee-table
                             </DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
