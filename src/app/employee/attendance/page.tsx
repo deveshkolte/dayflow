@@ -48,7 +48,7 @@ export default function EmployeeAttendancePage() {
       return;
     }
     setRows((current) => current.map((row, index) => index === 5 ? { ...row, checkIn: currentTime(), status: "Present" } : row));
-    setFeedback("You&apos;re checked in! Have a great day.");
+    setFeedback("You're checked in! Have a great day.");
   }
 
   function checkOut() {
@@ -61,7 +61,7 @@ export default function EmployeeAttendancePage() {
       return;
     }
     setRows((current) => current.map((row, index) => index === 5 ? { ...row, checkOut: currentTime() } : row));
-    setFeedback("You&apos;re all done for today!");
+    setFeedback("You're all done for today!");
   }
 
   const isComplete = Boolean(today.checkIn && today.checkOut);
