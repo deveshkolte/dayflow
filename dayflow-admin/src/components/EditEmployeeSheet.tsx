@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Employee } from "@/types";
+import { updateEmployee, ApiError } from "@/services/api";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ interface EditEmployeeSheetProps {
 export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: EditEmployeeSheetProps) {
   const [formData, setFormData] = useState<Partial<Employee>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (employee && open) {
@@ -42,19 +44,27 @@ export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: Edit
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleChange = (field: keyof Employee, value: string) => {
+  const handleChange = (field: keyof Employee, value: string | boolean | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
-    if (validate() && employee) {
-      onSave(formData as Employee);
+  const handleSave = async () => {
+    if (!validate() || !employee) return;
+    setSaving(true);
+    try {
+      const updated = await updateEmployee(employee.id, formData as unknown as Parameters<typeof updateEmployee>[1]);
+      onSave(updated);
       onOpenChange(false);
       toast.add({
         type: "success",
         title: "Employee Details Saved",
         description: `${formData.fullName}'s profile information has been updated.`,
       });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Failed to update employee.";
+      toast.add({ type: "error", title: "Update Failed", description: msg });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -115,19 +125,19 @@ export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: Edit
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="designation" className="font-bold text-[#534332]">Designation</label>
+            <label htmlFor="jobTitle" className="font-bold text-[#534332]">Designation</label>
             <Input
-              id="designation"
+              id="jobTitle"
               className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
-              value={formData.designation || ""}
-              onChange={(e) => handleChange("designation", e.target.value)}
+              value={formData.jobTitle || ""}
+              onChange={(e) => handleChange("jobTitle", e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="status" className="font-bold text-[#534332]">Access Status</label>
             <Select
-              value={formData.status || "active"}
-              onValueChange={(val) => handleChange("status", val || "active")}
+              value={formData.isActive !== false ? "active" : "suspended"}
+              onValueChange={(val) => handleChange("isActive", val === "active")}
             >
               <SelectTrigger className="rounded-xl border-[#DED9CF] bg-[#F7F6F1] text-xs">
                 <SelectValue placeholder="Status" />
@@ -149,10 +159,10 @@ export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: Edit
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!isFormValid}
+            disabled={!isFormValid || saving}
             className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl text-xs font-bold"
           >
-            Save Changes
+            {saving ? "Saving…" : "Save Changes"}
           </Button>
         </SheetFooter>
       </SheetContent>

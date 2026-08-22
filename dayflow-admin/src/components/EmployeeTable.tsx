@@ -60,6 +60,7 @@ export function EmployeeTable() {
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const [newEmp, setNewEmp] = useState({
     employeeId: "",
@@ -98,6 +99,8 @@ export function EmployeeTable() {
   };
 
   const handleToggleStatus = async (emp: Employee) => {
+    if (togglingId === emp.id) return;
+    setTogglingId(emp.id);
     try {
       const updated = await updateEmployee(emp.id, { isActive: !emp.isActive });
       setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
@@ -108,6 +111,8 @@ export function EmployeeTable() {
       });
     } catch (err) {
       toast.add({ type: "error", title: "Failed to update status", description: (err as Error).message });
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -321,9 +326,13 @@ export function EmployeeTable() {
                               <Edit2 className="h-3.5 w-3.5 text-[#797F3E]" /> Edit Details
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-[#DED9CF]" />
-                            <DropdownMenuItem onClick={() => handleToggleStatus(emp)} className="cursor-pointer text-xs font-semibold gap-2 text-[#534332]">
+                            <DropdownMenuItem
+                              onClick={() => handleToggleStatus(emp)}
+                              disabled={togglingId === emp.id}
+                              className="cursor-pointer text-xs font-semibold gap-2 text-[#534332]"
+                            >
                               <Power className="h-3.5 w-3.5 text-[#9F7E4A]" />
-                              {emp.isActive ? "Suspend Access" : "Activate Access"}
+                              {togglingId === emp.id ? "Updating…" : emp.isActive ? "Suspend Access" : "Activate Access"}
                             </DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
