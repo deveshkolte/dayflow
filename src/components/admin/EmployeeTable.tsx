@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { mockEmployees } from "@/constants/mockData";
+import { Employee } from "@/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,11 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuGroup } from "@/components/ui/dropdown-menu";
 import { Search, MoreHorizontal, ArrowUpDown } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { EditEmployeeSheet } from "./EditEmployeeSheet";
 
 type SortField = "fullName" | "department" | "designation" | "status" | null;
 type SortDirection = "asc" | "desc";
 
 export function EmployeeTable() {
+  const [employees, setEmployees] = useState(mockEmployees);
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -23,9 +28,12 @@ export function EmployeeTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 8;
 
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
   const uniqueDepartments = useMemo(() => {
-    return Array.from(new Set(mockEmployees.map((e) => e.department))).sort();
-  }, []);
+    return Array.from(new Set(employees.map((e) => e.department))).sort();
+  }, [employees]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -36,8 +44,27 @@ export function EmployeeTable() {
     }
   };
 
+  const handleToggleStatus = (emp: Employee) => {
+    const newStatus = emp.status === "active" ? "suspended" : "active";
+    setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, status: newStatus } : e));
+    toast.add({
+      type: "success",
+      title: "Status Updated",
+      description: `${emp.fullName} is now ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}.`,
+    });
+  };
+
+  const handleEditClick = (emp: Employee) => {
+    setEditingEmployee(emp);
+    setSheetOpen(true);
+  };
+
+  const handleSaveEmployee = (updatedEmp: Employee) => {
+    setEmployees(prev => prev.map(e => e.id === updatedEmp.id ? updatedEmp : e));
+  };
+
   const filteredAndSortedEmployees = useMemo(() => {
-    const result = mockEmployees.filter((emp) => {
+    const result = employees.filter((emp) => {
       const matchesSearch =
         emp.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         emp.employeeId.toLowerCase().includes(searchQuery.toLowerCase());
@@ -57,7 +84,7 @@ export function EmployeeTable() {
     }
 
     return result;
-  }, [searchQuery, departmentFilter, statusFilter, sortField, sortDirection]);
+  }, [employees, searchQuery, departmentFilter, statusFilter, sortField, sortDirection]);
 
   const totalItems = filteredAndSortedEmployees.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage));
@@ -202,8 +229,8 @@ export function EmployeeTable() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuGroup>
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
-                            <DropdownMenuItem>Toggle Status</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditClick(emp)}>Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleStatus(emp)}>Toggle Status</DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -240,6 +267,13 @@ export function EmployeeTable() {
           </Button>
         </div>
       </div>
+
+      <EditEmployeeSheet 
+        employee={editingEmployee} 
+        open={sheetOpen} 
+        onOpenChange={setSheetOpen} 
+        onSave={handleSaveEmployee} 
+      />
     </div>
   );
 }
