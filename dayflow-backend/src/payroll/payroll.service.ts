@@ -44,7 +44,8 @@ export class PayrollService {
   }
 
   async updateSalary(employeeId: string, actor: AuthenticatedUser, input: UpdateSalaryStructureDto) {
-    const effectiveFrom = this.parseDateOnly(input.effectiveFrom, 'effectiveFrom');
+    const effectiveFromStr = input.effectiveFrom || new Date().toISOString().slice(0, 10);
+    const effectiveFrom = this.parseDateOnly(effectiveFromStr, 'effectiveFrom');
     const effectiveTo = input.effectiveTo
       ? this.parseDateOnly(input.effectiveTo, 'effectiveTo')
       : null;

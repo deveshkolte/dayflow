@@ -12,8 +12,9 @@ export class UpdateSalaryStructureDto {
   @IsObject()
   allowances?: Record<string, unknown>;
 
+  @IsOptional()
   @IsDateString()
-  effectiveFrom!: string;
+  effectiveFrom?: string;
 
   @IsOptional()
   @IsDateString()
