@@ -14,7 +14,7 @@
     "start:debug": "nest start --debug --watch",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
-    "test": "echo \"No tests configured\" && exit 0",
+    "test": "npm run build && node --test test/core-business-rules.test.js",
     "prisma:format": "prisma format",
     "prisma:generate": "prisma generate",
     "prisma:seed": "node prisma/seed.js",
