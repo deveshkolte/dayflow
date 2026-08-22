@@ -10,19 +10,21 @@ import { AuthenticatedRequest } from './auth.types';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('register')
+  @Post(['register', 'signup'])
   async register(@Body() input: RegisterDto) {
-    return { success: true, data: await this.authService.register(input) };
+    const data = await this.authService.register(input);
+    return { success: true, data, token: data.token, accessToken: data.accessToken, user: data.user };
   }
 
   @Post('login')
   async login(@Body() credentials: LoginDto) {
-    return { success: true, data: await this.authService.login(credentials) };
+    const data = await this.authService.login(credentials);
+    return { success: true, data, token: data.token, accessToken: data.accessToken, user: data.user };
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
   currentUser(@Req() request: AuthenticatedRequest) {
-    return { success: true, data: request.user };
+    return { success: true, data: request.user, user: request.user };
   }
 }
