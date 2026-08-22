@@ -32,6 +32,9 @@ dist/
 build/
 .next/
 out/
+next-env.d.ts
+*.tsbuildinfo
+.vercel/
 coverage/
 .npm/
 .pnpm-store/
