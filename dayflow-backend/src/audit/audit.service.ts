@@ -10,6 +10,7 @@ interface AuditQuery {
   to?: string;
   page?: string;
   pageSize?: string;
+  search?: string;
 }
 
 // AuditService provides bounded, filterable history without exposing password or profile secrets.
@@ -36,11 +37,22 @@ export class AuditService {
       createdAt.lt = nextDay;
     }
 
+    const search = query.search?.trim();
+
     const where: Prisma.AuditLogWhereInput = {
       action: query.action?.trim() || undefined,
       entity: query.entity?.trim() || undefined,
       actorId: query.actorId?.trim() || undefined,
       createdAt: Object.keys(createdAt).length ? createdAt : undefined,
+      OR: search
+        ? [
+            { action: { contains: search, mode: 'insensitive' } },
+            { entity: { contains: search, mode: 'insensitive' } },
+            { actor: { firstName: { contains: search, mode: 'insensitive' } } },
+            { actor: { lastName: { contains: search, mode: 'insensitive' } } },
+            { actor: { employeeId: { contains: search, mode: 'insensitive' } } },
+          ]
+        : undefined,
     };
 
     const [logs, total] = await Promise.all([

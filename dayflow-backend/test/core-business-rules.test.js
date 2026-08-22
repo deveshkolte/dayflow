@@ -121,3 +121,68 @@ test('attendance rejects a second check-in for the same day', async () => {
     (error) => error.message === 'You have already checked in today.',
   );
 });
+
+test('audit log service queries logs correctly with pagination envelope', async () => {
+  const { AuditService } = require('../dist/audit/audit.service.js');
+  const sampleLog = {
+    id: 'log-1',
+    action: 'LEAVE_APPROVED',
+    entity: 'LeaveRequest',
+    metadata: { leaveRequestId: 'leave-1' },
+    createdAt: new Date('2026-08-22T10:00:00.000Z'),
+    actor: { id: 'hr-1', employeeId: 'HR001', firstName: 'Aditi', lastName: 'Sharma', role: 'HR' },
+  };
+
+  const prisma = {
+    auditLog: {
+      findMany: async () => [sampleLog],
+      count: async () => 1,
+    },
+  };
+
+  const service = new AuditService(prisma);
+  const result = await service.findAll({ search: 'Leave' });
+
+  assert.equal(result.total, 1);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].action, 'LEAVE_APPROVED');
+  assert.equal(result.items[0].actor.fullName, 'Aditi Sharma');
+});
+
+test('employee update by admin records audit log event', async () => {
+  const { EmployeeService } = require('../dist/employee/employee.service.js');
+  const auditRows = [];
+  const updatedUser = {
+    id: 'emp-1',
+    employeeId: 'EMP001',
+    email: 'emp1@dayflow.local',
+    firstName: 'Rohan',
+    lastName: 'Desai',
+    phone: '1234567890',
+    address: '123 Main St',
+    department: 'Engineering',
+    jobTitle: 'Software Engineer',
+    role: 'EMPLOYEE',
+    isActive: true,
+    profilePictureUrl: null,
+    createdAt: new Date(),
+    documents: [],
+    salaryStructures: [],
+  };
+
+  const prisma = {
+    $transaction: async (callback) =>
+      callback({
+        user: { update: async () => updatedUser },
+        auditLog: { create: async ({ data }) => auditRows.push(data) },
+      }),
+  };
+
+  const service = new EmployeeService(prisma);
+  const result = await service.updateByAdmin('emp-1', { department: 'Engineering' }, hrUser);
+
+  assert.equal(result.id, 'emp-1');
+  assert.equal(auditRows.length, 1);
+  assert.equal(auditRows[0].action, 'EMPLOYEE_UPDATED');
+  assert.equal(auditRows[0].entity, 'User');
+});

@@ -6,7 +6,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { AuditService } from './audit.service';
 
 // AuditController limits audit history to HR/Admin users because it may contain sensitive HR actions.
-@Controller('admin/audit-logs')
+// Routes exposed: GET /api/admin/audit-logs, GET /api/audit-logs, GET /api/admin/audit, GET /api/audit
+@Controller(['admin/audit-logs', 'audit-logs', 'admin/audit', 'audit'])
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.HR, Role.ADMIN)
 export class AuditController {
@@ -21,10 +22,21 @@ export class AuditController {
     @Query('to') to?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     return {
       success: true,
-      data: await this.auditService.findAll({ action, entity, actorId, from, to, page, pageSize }),
+      data: await this.auditService.findAll({
+        action,
+        entity,
+        actorId,
+        from,
+        to,
+        page,
+        pageSize: pageSize || limit,
+        search,
+      }),
     };
   }
 }

@@ -39,12 +39,15 @@ export class AttendanceController {
   @Roles(Role.HR, Role.ADMIN)
   async all(
     @Query('date') date?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Query('status', new ParseEnumPipe(AttendanceStatus, { optional: true })) status?: AttendanceStatus,
     @Query('employeeId') employeeId?: string,
+    @Query('search') search?: string,
   ) {
     return {
       success: true,
-      data: await this.attendanceService.findAll(date, status, employeeId),
+      data: await this.attendanceService.findAll({ date, startDate, endDate, status, employeeId, search }),
     };
   }
 }

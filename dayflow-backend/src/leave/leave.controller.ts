@@ -40,8 +40,10 @@ export class LeaveController {
   async all(
     @Query('status', new ParseEnumPipe(LeaveStatus, { optional: true })) status?: LeaveStatus,
     @Query('type', new ParseEnumPipe(LeaveType, { optional: true })) type?: LeaveType,
+    @Query('employeeId') employeeId?: string,
+    @Query('search') search?: string,
   ) {
-    return { success: true, data: await this.leaveService.findAll(status, type) };
+    return { success: true, data: await this.leaveService.findAll(status, type, employeeId, search) };
   }
 
   @Patch('admin/leave/:id/decision')

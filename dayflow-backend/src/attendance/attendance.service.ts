@@ -89,12 +89,30 @@ export class AttendanceService {
     return records.map((record) => this.serialize(record));
   }
 
-  async findAll(date?: string, status?: AttendanceStatus, employeeId?: string) {
+  async findAll(filters: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    status?: AttendanceStatus;
+    employeeId?: string;
+    search?: string;
+  } = {}) {
+    const { date, startDate, endDate, status, employeeId, search } = filters;
+    const dateFilter = date ? this.dateRange(date, date) : this.dateRange(startDate, endDate);
+    const searchTerm = search?.trim();
+
     const records = await this.prisma.attendance.findMany({
       where: {
         employeeId,
         status,
-        date: date ? this.dateRange(date, date) : undefined,
+        date: dateFilter,
+        OR: searchTerm
+          ? [
+              { employee: { firstName: { contains: searchTerm, mode: 'insensitive' } } },
+              { employee: { lastName: { contains: searchTerm, mode: 'insensitive' } } },
+              { employee: { employeeId: { contains: searchTerm, mode: 'insensitive' } } },
+            ]
+          : undefined,
       },
       include: { employee: true },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],

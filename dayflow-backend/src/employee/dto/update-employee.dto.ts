@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import { Role } from '@prisma/client';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 // HR/Admin updates are limited to editable employee fields and never accept password hashes.
 export class UpdateEmployeeDto {
@@ -35,6 +36,10 @@ export class UpdateEmployeeDto {
   @IsString()
   @MaxLength(100)
   department?: string;
+
+  @IsOptional()
+  @IsEnum(Role)
+  role?: Role;
 
   @IsOptional()
   @IsUrl()

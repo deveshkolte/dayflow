@@ -81,9 +81,22 @@ export class LeaveService {
     return requests.map((request) => this.serialize(request));
   }
 
-  async findAll(status?: LeaveStatus, type?: LeaveType) {
+  async findAll(status?: LeaveStatus, type?: LeaveType, employeeId?: string, search?: string) {
+    const searchTerm = search?.trim();
     const requests = await this.prisma.leaveRequest.findMany({
-      where: { status, type },
+      where: {
+        status,
+        type,
+        employeeId,
+        OR: searchTerm
+          ? [
+              { employee: { firstName: { contains: searchTerm, mode: 'insensitive' } } },
+              { employee: { lastName: { contains: searchTerm, mode: 'insensitive' } } },
+              { employee: { employeeId: { contains: searchTerm, mode: 'insensitive' } } },
+              { reason: { contains: searchTerm, mode: 'insensitive' } },
+            ]
+          : undefined,
+      },
       include: { employee: true, approver: true },
       orderBy: { createdAt: 'desc' },
     });

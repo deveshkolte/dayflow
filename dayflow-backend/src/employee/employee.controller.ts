@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseEnumPipe, Patch, Query, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthenticatedRequest } from '../auth/auth.types';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -26,13 +26,18 @@ export class EmployeeController {
 
   @Get('admin/employees')
   @Roles(Role.HR, Role.ADMIN)
-  findAll(@Query('search') search?: string, @Query('department') department?: string, @Query('isActive') isActive?: string) {
+  findAll(
+    @Query('search') search?: string,
+    @Query('department') department?: string,
+    @Query('isActive') isActive?: string,
+    @Query('role', new ParseEnumPipe(Role, { optional: true })) role?: Role,
+  ) {
     if (isActive !== undefined && isActive !== 'true' && isActive !== 'false') {
       throw new BadRequestException('isActive must be true or false.');
     }
 
     const activeFilter = isActive === undefined ? undefined : isActive === 'true';
-    return this.employeeService.findAll(search?.trim(), department?.trim(), activeFilter).then((data) => ({ success: true, data }));
+    return this.employeeService.findAll(search?.trim(), department?.trim(), activeFilter, role).then((data) => ({ success: true, data }));
   }
 
   @Get('admin/employees/:id')
@@ -43,7 +48,7 @@ export class EmployeeController {
 
   @Patch('admin/employees/:id')
   @Roles(Role.HR, Role.ADMIN)
-  updateOne(@Param('id') id: string, @Body() input: UpdateEmployeeDto) {
-    return this.employeeService.updateByAdmin(id, input).then((data) => ({ success: true, data }));
+  updateOne(@Param('id') id: string, @Body() input: UpdateEmployeeDto, @Req() request: AuthenticatedRequest) {
+    return this.employeeService.updateByAdmin(id, input, request.user).then((data) => ({ success: true, data }));
   }
 }
