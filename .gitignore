@@ -1,0 +1,47 @@
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Team-local/private files
+instruction.md
+.team-local.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.npm/
+.pnpm-store/
+
+# Environment files
+.env
+.env.*
+*.local
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
