@@ -1,8 +1,48 @@
-import { AuthenticatedUser, LeaveRequest, Employee } from "@/types";
+// ─── Dayflow Admin Portal – API Service ──────────────────────────────────────
+// All backend communication is centralised here. No mock data.
 
-// The browser talks to the Nest API through one configurable base URL.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+import type {
+  AuthenticatedUser,
+  Employee,
+  Attendance,
+  LeaveRequest,
+  PayrollRecord,
+  AttendanceFilters,
+} from "@/types";
 
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+const TOKEN_KEY = "dayflow_admin_token";
+const USER_KEY = "dayflow_admin_user";
+
+// ─── Session helpers ──────────────────────────────────────────────────────────
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
+export function saveSession(token: string, user: AuthenticatedUser): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(TOKEN_KEY, token);
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function clearSession(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
+
+export function getSavedUser(): AuthenticatedUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as AuthenticatedUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── ApiError ─────────────────────────────────────────────────────────────────
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
@@ -10,182 +50,156 @@ export class ApiError extends Error {
   }
 }
 
-// Tokens are kept for the current browser session and never embedded in source code.
-const getAccessToken = () => {
-  if (typeof window === "undefined") return null;
-  return window.sessionStorage.getItem("dayflow_access_token");
-};
+// ─── Base fetch ───────────────────────────────────────────────────────────────
+async function req<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string> | undefined),
+  };
 
-export const saveAccessToken = (token: string) => {
-  window.sessionStorage.setItem("dayflow_access_token", token);
-};
+  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  const body = await res.json().catch(() => ({})) as Record<string, unknown>;
 
-export const clearAccessToken = () => {
-  if (typeof window !== "undefined") window.sessionStorage.removeItem("dayflow_access_token");
-};
-
-// apiRequest gives every endpoint the same headers, JSON parsing, and safe error message.
-async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAccessToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-
-  const body = (await response.json().catch(() => null)) as { success?: boolean; data?: T; message?: string } | null;
-
-  if (!response.ok || !body?.success) {
-    const message = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
-    throw new ApiError(response.status, message || "The request could not be completed.");
+  if (!res.ok) {
+    const msg = Array.isArray(body?.message)
+      ? (body.message as string[]).join(", ")
+      : typeof body?.message === "string"
+        ? body.message
+        : `HTTP ${res.status}`;
+    throw new ApiError(res.status, msg);
   }
 
-  return body.data as T;
+  // The backend wraps all success responses in { success, data }.
+  return (body?.data ?? body) as T;
 }
 
-export async function login(email: string, password: string) {
-  const result = await apiRequest<{ accessToken: string; user: AuthenticatedUser }>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-
-  saveAccessToken(result.accessToken);
-  return result.user;
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+export interface LoginResult {
+  user: AuthenticatedUser;
+  token: string;
 }
 
-export function logout() {
-  clearAccessToken();
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const body = await req<{ accessToken: string; token: string; user: AuthenticatedUser }>(
+    "/auth/login",
+    { method: "POST", body: JSON.stringify({ email, password }) }
+  );
+  const token = body.accessToken ?? body.token;
+  return { token, user: body.user };
 }
 
-export function getCurrentUser() {
-  return apiRequest<AuthenticatedUser>("/auth/me");
+export async function getCurrentUser(): Promise<AuthenticatedUser> {
+  return req<AuthenticatedUser>("/auth/me");
 }
 
-function mapLeaveRequest(request: {
-  id: string;
-  employeeId: string;
-  employeeName: string | null;
-  type: "PAID" | "SICK" | "UNPAID";
-  startDate: string;
-  endDate: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
-  reason: string | null;
-  approverComment: string | null;
-  createdAt: string;
-}) : LeaveRequest {
-  // The UI keeps title-case labels while the API uses database enum values.
-  return {
-    id: request.id,
-    employeeId: request.employeeId,
-    employeeName: request.employeeName ?? request.employeeId,
-    type: request.type.charAt(0) + request.type.slice(1).toLowerCase() as LeaveRequest["type"],
-    startDate: `${request.startDate}T00:00:00.000Z`,
-    endDate: `${request.endDate}T00:00:00.000Z`,
-    remarks: request.reason ?? "",
-    status: request.status.charAt(0) + request.status.slice(1).toLowerCase() as LeaveRequest["status"],
-    adminComment: request.approverComment,
-    appliedOn: request.createdAt,
-  };
+// ─── Employees (Admin) ────────────────────────────────────────────────────────
+export async function getEmployees(params?: {
+  search?: string;
+  department?: string;
+  isActive?: boolean;
+}): Promise<Employee[]> {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.department) qs.set("department", params.department);
+  if (params?.isActive !== undefined) qs.set("isActive", String(params.isActive));
+  return req<Employee[]>(`/admin/employees${qs.toString() ? `?${qs}` : ""}`);
 }
 
-export async function getMyLeaveRequests() {
-  const requests = await apiRequest<Parameters<typeof mapLeaveRequest>[0][]>("/leave/me");
-  return requests.map(mapLeaveRequest);
-}
-
-export async function createLeaveRequest(input: {
-  startDate: string;
-  endDate: string;
-  type: "PAID" | "SICK" | "UNPAID";
-  reason?: string;
-}) {
-  const request = await apiRequest<Parameters<typeof mapLeaveRequest>[0]>("/leave", {
-    method: "POST",
+export async function updateEmployee(id: string, input: {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  department?: string;
+  jobTitle?: string;
+  isActive?: boolean;
+}): Promise<Employee> {
+  return req<Employee>(`/admin/employees/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(input),
   });
-
-  return mapLeaveRequest(request);
 }
 
-export async function getAdminLeaveRequests(filters?: { status?: string; type?: string }) {
-  const query = new URLSearchParams();
-  if (filters?.status && filters.status !== "all") query.set("status", filters.status.toUpperCase());
-  if (filters?.type && filters.type !== "all") query.set("type", filters.type.toUpperCase());
-
-  const suffix = query.toString() ? `?${query.toString()}` : "";
-  const requests = await apiRequest<Parameters<typeof mapLeaveRequest>[0][]>(`/admin/leave${suffix}`);
-  return requests.map(mapLeaveRequest);
+export async function addEmployee(input: {
+  employeeId: string;
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+}): Promise<AuthenticatedUser> {
+  // Use the register endpoint to create new employees
+  const body = await req<{ accessToken: string; user: AuthenticatedUser }>(
+    "/auth/register",
+    { method: "POST", body: JSON.stringify(input) }
+  );
+  return body.user;
 }
 
-export async function decideLeaveRequest(id: string, decision: "APPROVE" | "REJECT", comment?: string) {
-  const request = await apiRequest<Parameters<typeof mapLeaveRequest>[0]>(`/admin/leave/${id}/decision`, {
+// ─── Attendance (Admin) ───────────────────────────────────────────────────────
+export async function getAttendance(filters: AttendanceFilters = {}): Promise<Attendance[]> {
+  const qs = new URLSearchParams();
+  if (filters.date) qs.set("date", filters.date);
+  if (filters.startDate) qs.set("startDate", filters.startDate);
+  if (filters.endDate) qs.set("endDate", filters.endDate);
+  if (filters.status) qs.set("status", filters.status);
+  if (filters.employeeId) qs.set("employeeId", filters.employeeId);
+  if (filters.search) qs.set("search", filters.search);
+  return req<Attendance[]>(`/admin/attendance${qs.toString() ? `?${qs}` : ""}`);
+}
+
+// ─── Leave (Admin) ────────────────────────────────────────────────────────────
+export async function getLeaveRequests(params?: {
+  status?: string;
+  type?: string;
+  search?: string;
+}): Promise<LeaveRequest[]> {
+  const qs = new URLSearchParams();
+  if (params?.status && params.status !== "all") qs.set("status", params.status.toUpperCase());
+  if (params?.type && params.type !== "all") qs.set("type", params.type.toUpperCase());
+  if (params?.search) qs.set("search", params.search);
+  return req<LeaveRequest[]>(`/admin/leave${qs.toString() ? `?${qs}` : ""}`);
+}
+
+export async function decideLeave(
+  id: string,
+  decision: "APPROVE" | "REJECT",
+  comment?: string
+): Promise<LeaveRequest> {
+  return req<LeaveRequest>(`/admin/leave/${id}/decision`, {
     method: "PATCH",
     body: JSON.stringify({ decision, comment }),
   });
-
-  return mapLeaveRequest(request);
 }
 
-interface ApiEmployee {
-  id: string;
-  employeeId: string;
-  fullName?: string;
-  email: string;
-  phone?: string | null;
-  department?: string | null;
-  designation?: string | null;
-  jobTitle?: string | null;
-  role: string;
-  isActive?: boolean;
-  createdAt?: string;
-  joiningDate?: string | Date | null;
-  profilePictureUrl?: string | null;
-  address?: string | null;
-  salaryStructure?: Employee["salaryStructure"];
-  documents?: Employee["documents"];
+// ─── Payroll (Admin) ──────────────────────────────────────────────────────────
+export async function getPayroll(): Promise<PayrollRecord[]> {
+  return req<PayrollRecord[]>("/admin/payroll");
 }
 
-function mapEmployee(employee: ApiEmployee): Employee {
-  return {
-    id: employee.id,
-    employeeId: employee.employeeId,
-    fullName: employee.fullName || employee.email.split("@")[0],
-    email: employee.email,
-    phone: employee.phone || "",
-    department: employee.department || "General",
-    designation: employee.designation || employee.jobTitle || "Employee",
-    role: (employee.role.toLowerCase() as "employee" | "admin" | "hr") || "employee",
-    status: employee.isActive === false ? "suspended" : "active",
-    joiningDate: employee.joiningDate ? new Date(employee.joiningDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-    profilePictureUrl: employee.profilePictureUrl || "",
-    address: employee.address || "",
-    salaryStructure: employee.salaryStructure || { basic: 50000, hra: 20000, allowances: 10000, deductions: 5000, netSalary: 75000 },
-    documents: employee.documents || [],
-  };
-}
-
-export async function getAdminEmployees(filters?: { search?: string; department?: string; active?: boolean }) {
-  const query = new URLSearchParams();
-  if (filters?.search) query.set("search", filters.search);
-  if (filters?.department && filters.department !== "all") query.set("department", filters.department);
-  if (filters?.active !== undefined) query.set("active", filters.active.toString());
-
-  const suffix = query.toString() ? `?${query.toString()}` : "";
-  const employees = await apiRequest<ApiEmployee[]>(`/admin/employees${suffix}`);
-  return employees.map(mapEmployee);
-}
-
-export async function updateAdminEmployee(id: string, updates: { status?: string; isActive?: boolean }) {
-  const payload: Record<string, unknown> = {};
-  if (updates.status !== undefined) payload.isActive = updates.status === "active";
-  if (updates.isActive !== undefined) payload.isActive = updates.isActive;
-
-  const employee = await apiRequest<ApiEmployee>(`/admin/employees/${id}`, {
+export async function updateSalaryStructure(
+  employeeId: string,
+  input: {
+    baseSalary: number;
+    allowances?: Record<string, number>;
+    effectiveFrom: string;
+  }
+): Promise<Employee> {
+  return req<Employee>(`/admin/employees/${employeeId}/salary-structure`, {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(input),
   });
-  return mapEmployee(employee);
 }
+
+// ─── Backwards Compatibility Aliases ──────────────────────────────────────────
+export const getAdminEmployees = getEmployees;
+export const updateAdminEmployee = (id: string, updates: { status?: string; isActive?: boolean }) =>
+  updateEmployee(id, { isActive: updates.status ? updates.status === "active" : updates.isActive });
+export const getAdminAttendance = getAttendance;
+export const getAdminLeaveRequests = getLeaveRequests;
+export const getAdminPayroll = getPayroll;
+export const updateAdminSalary = (employeeId: string, input: { basic?: number; hra?: number; allowances?: number; deductions?: number }) =>
+  updateSalaryStructure(employeeId, { baseSalary: input.basic ?? 0, effectiveFrom: new Date().toISOString() });
+

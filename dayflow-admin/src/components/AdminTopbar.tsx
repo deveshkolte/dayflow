@@ -25,11 +25,12 @@ import {
   DropdownMenuTrigger,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { mockEmployees, mockLeaveRequests } from "@/constants/mockData";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { getLeaveRequests } from "@/services/api";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -42,6 +43,11 @@ const navItems = [
 
 export function AdminTopbar() {
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
   const currentItem = navItems.find((item) => item.href === pathname) || {
     name:
       pathname === "/payroll"
@@ -50,35 +56,15 @@ export function AdminTopbar() {
         ? "Reports & Analytics"
         : "HR Admin Dashboard",
   };
-  const adminUser = mockEmployees[2]; // Vikram Reddy, admin
-  const [open, setOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
 
-  const pendingLeaves = mockLeaveRequests.filter((r) => r.status === "Pending");
-  const [notifications, setNotifications] = useState([
-    ...pendingLeaves.slice(0, 3).map((r) => ({
-      id: r.id,
-      title: "New Leave Application",
-      description: `${r.employeeName} applied for ${r.type} leave (${r.remarks || "No remarks"})`,
-      time: "Pending review",
-      unread: true,
-      href: "/leave",
-    })),
-    {
-      id: "sys-1",
-      title: "Monthly Payroll Prepared",
-      description: "August 2026 payroll calculation sheets are ready for disbursement review.",
-      time: "1 hour ago",
-      unread: false,
-      href: "/payroll",
-    },
-  ]);
+  useEffect(() => {
+    getLeaveRequests({ status: "PENDING" })
+      .then((leaves) => setPendingCount(leaves.length))
+      .catch(() => {});
+  }, []);
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
-
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-  };
+  const displayName = user?.email?.split("@")[0] ?? "Admin";
+  const initials = displayName.substring(0, 2).toUpperCase();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between gap-4 border-b border-[#DED9CF] bg-white px-4 sm:px-8 shadow-sm">
@@ -155,13 +141,13 @@ export function AdminTopbar() {
           </span>
         </div>
 
-        {/* Notifications Dropdown */}
+        {/* Notifications */}
         <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
           <DropdownMenuTrigger className="relative h-9 w-9 rounded-xl border border-[#DED9CF] bg-[#F7F6F1] hover:bg-white flex items-center justify-center text-[#534332] transition-colors focus:outline-none">
             <Bell className="h-4 w-4" />
-            {unreadCount > 0 && (
+            {pendingCount > 0 && (
               <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-[#9F7E4A] text-white text-[10px] font-bold flex items-center justify-center border-2 border-white shadow-sm">
-                {unreadCount}
+                {pendingCount}
               </span>
             )}
           </DropdownMenuTrigger>
@@ -169,42 +155,26 @@ export function AdminTopbar() {
             <div className="flex items-center justify-between p-4 bg-[#F5F1E7] border-b border-[#DED9CF] rounded-t-2xl">
               <div>
                 <h4 className="font-display font-bold text-sm text-[#534332]">System Alerts</h4>
-                <p className="text-[11px] text-[#6D6A61]">{unreadCount} pending notification{unreadCount !== 1 && "s"}</p>
+                <p className="text-[11px] text-[#6D6A61]">{pendingCount} pending leave request{pendingCount !== 1 && "s"}</p>
               </div>
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleMarkAllRead}
-                  className="text-xs font-semibold text-[#454F2D] hover:underline"
-                >
-                  Mark all as read
-                </button>
-              )}
             </div>
-            <div className="max-h-72 overflow-y-auto divide-y divide-[#F7F6F1]">
-              {notifications.length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#6D6A61]">No new notifications</div>
+            <div className="max-h-72 overflow-y-auto">
+              {pendingCount === 0 ? (
+                <div className="p-4 text-center text-xs text-[#6D6A61]">No pending leave requests</div>
               ) : (
-                notifications.map((notif) => (
-                  <Link
-                    key={notif.id}
-                    href={notif.href}
-                    onClick={() => setNotifOpen(false)}
-                    className={cn(
-                      "flex items-start gap-3 p-3.5 hover:bg-[#F7F6F1] transition-colors text-left block",
-                      notif.unread && "bg-[#9F7E4A]/5"
-                    )}
-                  >
-                    <div className="h-8 w-8 rounded-lg bg-[#454F2D]/10 text-[#454F2D] flex items-center justify-center shrink-0 mt-0.5">
-                      <Clock className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[#534332] truncate">{notif.title}</p>
-                      <p className="text-[11px] text-[#6D6A61] line-clamp-2 mt-0.5">{notif.description}</p>
-                      <span className="text-[10px] text-[#9F7E4A] font-semibold mt-1 block">{notif.time}</span>
-                    </div>
-                  </Link>
-                ))
+                <Link
+                  href="/leave"
+                  onClick={() => setNotifOpen(false)}
+                  className="flex items-start gap-3 p-3.5 hover:bg-[#F7F6F1] transition-colors text-left block bg-[#9F7E4A]/5"
+                >
+                  <div className="h-8 w-8 rounded-lg bg-[#454F2D]/10 text-[#454F2D] flex items-center justify-center shrink-0 mt-0.5">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-[#534332]">Pending Leave Applications</p>
+                    <p className="text-[11px] text-[#6D6A61] mt-0.5">{pendingCount} request{pendingCount !== 1 && "s"} awaiting review</p>
+                  </div>
+                </Link>
               )}
             </div>
             <div className="p-2 border-t border-[#DED9CF] bg-[#F7F6F1] text-center rounded-b-2xl">
@@ -223,15 +193,14 @@ export function AdminTopbar() {
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-[#F7F6F1] border border-transparent hover:border-[#DED9CF] transition-colors focus:outline-none">
             <Avatar className="h-8 w-8 border border-[#9F7E4A]">
-              <AvatarImage src={adminUser.profilePictureUrl} alt={adminUser.fullName} />
               <AvatarFallback className="bg-[#454F2D] text-white text-xs font-bold">
-                {adminUser.fullName.substring(0, 2).toUpperCase()}
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="hidden md:flex flex-col text-left">
-              <span className="text-xs font-bold text-[#534332] leading-tight">{adminUser.fullName}</span>
+              <span className="text-xs font-bold text-[#534332] leading-tight">{displayName}</span>
               <span className="text-[10px] text-[#9F7E4A] font-semibold uppercase tracking-wider">
-                {adminUser.role.toUpperCase()}
+                {user?.role ?? "ADMIN"}
               </span>
             </div>
           </DropdownMenuTrigger>
@@ -239,11 +208,11 @@ export function AdminTopbar() {
             <DropdownMenuGroup>
               <DropdownMenuLabel className="font-normal p-3">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-bold leading-none text-[#534332]">{adminUser.fullName}</p>
-                  <p className="text-xs leading-none text-[#6D6A61]">{adminUser.email}</p>
+                  <p className="text-sm font-bold leading-none text-[#534332]">{displayName}</p>
+                  <p className="text-xs leading-none text-[#6D6A61]">{user?.email}</p>
                   <div className="pt-1">
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#454F2D]/10 text-[#454F2D]">
-                      <ShieldCheck className="h-3 w-3" /> HR Administrator
+                      <ShieldCheck className="h-3 w-3" /> {user?.role ?? "ADMIN"}
                     </span>
                   </div>
                 </div>
@@ -258,9 +227,7 @@ export function AdminTopbar() {
               <DropdownMenuSeparator className="bg-[#DED9CF]" />
               <DropdownMenuItem
                 className="cursor-pointer gap-2 py-2 text-xs font-semibold text-red-700 focus:text-red-700 focus:bg-red-50"
-                onClick={() => {
-                  window.location.href = "/";
-                }}
+                onClick={signOut}
               >
                 <LogOut className="h-4 w-4 text-red-600" /> Sign Out
               </DropdownMenuItem>
