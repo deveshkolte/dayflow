@@ -23,11 +23,11 @@ export class AuthService {
   async register(input: RegisterDto) {
     const email = input.email.trim().toLowerCase();
     const employeeId = input.employeeId.trim().toUpperCase();
-    const firstName = input.firstName.trim();
-    const lastName = input.lastName.trim();
+    const firstName = input.firstName?.trim() || employeeId;
+    const lastName = input.lastName?.trim() || '';
 
-    if (!employeeId || !firstName || !lastName) {
-      throw new BadRequestException('Employee ID, first name, and last name cannot be blank.');
+    if (!employeeId) {
+      throw new BadRequestException('Employee ID cannot be blank.');
     }
 
     const passwordHash = await bcrypt.hash(input.password, 12);
@@ -46,7 +46,14 @@ export class AuthService {
         },
       });
 
-      return { user: this.identity(user) };
+      const identity = this.identity(user);
+      const secret = process.env.JWT_SECRET || 'fallback-secret-for-dev';
+      const token = await this.jwtService.signAsync(
+        { sub: identity.id, employeeId: identity.employeeId, email: identity.email, role: identity.role },
+        { secret, expiresIn: '1h' },
+      );
+
+      return { accessToken: token, token, user: identity };
     } catch (error) {
       if ((error as { code?: string }).code === 'P2002') {
         throw new ConflictException('That email address or employee ID is already registered.');
@@ -82,7 +89,7 @@ export class AuthService {
       { secret, expiresIn: '1h' },
     );
 
-    return { accessToken, user: identity };
+    return { accessToken, token: accessToken, user: identity };
   }
 
   private identity(user: { id: string; employeeId: string; email: string; role: AuthenticatedUser['role'] }): AuthenticatedUser {

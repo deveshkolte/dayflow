@@ -23,12 +23,18 @@ export class LeaveService {
       throw new BadRequestException('The leave end date cannot precede the start date.');
     }
 
+    const rawType = (input.type || input.leaveType || 'PAID').toString().toUpperCase();
+    let leaveType: LeaveType = LeaveType.PAID;
+    if (rawType === 'SICK') leaveType = LeaveType.SICK;
+    else if (rawType === 'UNPAID' || rawType === 'EMERGENCY') leaveType = LeaveType.UNPAID;
+    else leaveType = LeaveType.PAID;
+
     const duplicate = await this.prisma.leaveRequest.findFirst({
       where: {
         employeeId: employee.id,
         startDate,
         endDate,
-        type: input.type,
+        type: leaveType,
         status: LeaveStatus.PENDING,
       },
     });
@@ -44,7 +50,7 @@ export class LeaveService {
           employeeId: employee.id,
           startDate,
           endDate,
-          type: input.type,
+          type: leaveType,
           reason: input.reason?.trim() || null,
         },
         include: { employee: true },
@@ -60,7 +66,7 @@ export class LeaveService {
             employeeId: employee.id,
             startDate: input.startDate,
             endDate: input.endDate,
-            type: input.type,
+            type: leaveType,
           } as Prisma.InputJsonValue,
         },
       });
@@ -81,9 +87,22 @@ export class LeaveService {
     return requests.map((request) => this.serialize(request));
   }
 
-  async findAll(status?: LeaveStatus, type?: LeaveType) {
+  async findAll(status?: LeaveStatus, type?: LeaveType, employeeId?: string, search?: string) {
+    const searchTerm = search?.trim();
     const requests = await this.prisma.leaveRequest.findMany({
-      where: { status, type },
+      where: {
+        status,
+        type,
+        employeeId,
+        OR: searchTerm
+          ? [
+              { employee: { firstName: { contains: searchTerm, mode: 'insensitive' } } },
+              { employee: { lastName: { contains: searchTerm, mode: 'insensitive' } } },
+              { employee: { employeeId: { contains: searchTerm, mode: 'insensitive' } } },
+              { reason: { contains: searchTerm, mode: 'insensitive' } },
+            ]
+          : undefined,
+      },
       include: { employee: true, approver: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -160,22 +179,32 @@ export class LeaveService {
 
   private serialize(
     request: LeaveRequest & {
-      employee?: { id: string; employeeId: string; firstName: string | null; lastName: string | null };
+      employee?: { id: string; employeeId: string; email?: string | null; firstName: string | null; lastName: string | null };
       approver?: { firstName: string | null; lastName: string | null } | null;
     },
   ) {
+    const formattedType = request.type === 'PAID' ? 'Casual' : request.type === 'SICK' ? 'Sick' : 'Unpaid';
+    const statusLower = request.status.toLowerCase();
+
     return {
       id: request.id,
+      userId: request.employeeId,
       employeeId: request.employee?.employeeId ?? request.employeeId,
       employeeName: request.employee ? this.fullName(request.employee.firstName, request.employee.lastName) : null,
+      email: request.employee?.email ?? null,
       type: request.type,
+      leaveType: formattedType,
       startDate: request.startDate.toISOString().slice(0, 10),
       endDate: request.endDate.toISOString().slice(0, 10),
       status: request.status,
-      reason: request.reason,
+      statusLower,
+      reason: request.reason ?? '',
+      remarks: request.reason ?? '',
       approverComment: request.approverComment,
+      adminComment: request.approverComment,
       approverName: request.approver ? this.fullName(request.approver.firstName, request.approver.lastName) : null,
       createdAt: request.createdAt.toISOString(),
+      appliedOn: request.createdAt.toISOString(),
       updatedAt: request.updatedAt.toISOString(),
     };
   }

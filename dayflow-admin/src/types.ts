@@ -67,3 +67,10 @@ export type EmployeeStatus = Employee["status"];
 export type AttendanceStatus = Attendance["status"];
 export type LeaveType = LeaveRequest["type"];
 export type LeaveStatus = LeaveRequest["status"];
+
+export interface AuthenticatedUser {
+  id: string;
+  employeeId: string;
+  email: string;
+  role: "EMPLOYEE" | "HR" | "ADMIN";
+}

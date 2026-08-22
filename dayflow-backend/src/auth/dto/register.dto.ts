@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 // RegisterDto accepts only fields an employee is allowed to choose during sign-up.
 export class RegisterDto {
@@ -15,13 +15,13 @@ export class RegisterDto {
   @MaxLength(100)
   password!: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(80)
-  firstName!: string;
+  firstName?: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(80)
-  lastName!: string;
+  lastName?: string;
 }

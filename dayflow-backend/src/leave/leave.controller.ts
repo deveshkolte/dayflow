@@ -25,26 +25,30 @@ import { LeaveService } from './leave.service';
 export class LeaveController {
   constructor(private readonly leaveService: LeaveService) {}
 
-  @Post('leave')
+  @Post(['leave', 'leaves'])
   async create(@Req() request: AuthenticatedRequest, @Body() input: CreateLeaveRequestDto) {
-    return { success: true, data: await this.leaveService.create(request.user, input) };
+    const data = await this.leaveService.create(request.user, input);
+    return { success: true, data, leave: data };
   }
 
-  @Get('leave/me')
+  @Get(['leave/me', 'leaves'])
   async mine(@Req() request: AuthenticatedRequest) {
-    return { success: true, data: await this.leaveService.findMine(request.user.id) };
+    const data = await this.leaveService.findMine(request.user.id);
+    return { success: true, data, leaves: data };
   }
 
-  @Get('admin/leave')
+  @Get(['admin/leave', 'admin/leaves'])
   @Roles(Role.HR, Role.ADMIN)
   async all(
     @Query('status', new ParseEnumPipe(LeaveStatus, { optional: true })) status?: LeaveStatus,
     @Query('type', new ParseEnumPipe(LeaveType, { optional: true })) type?: LeaveType,
+    @Query('employeeId') employeeId?: string,
+    @Query('search') search?: string,
   ) {
-    return { success: true, data: await this.leaveService.findAll(status, type) };
+    return { success: true, data: await this.leaveService.findAll(status, type, employeeId, search) };
   }
 
-  @Patch('admin/leave/:id/decision')
+  @Patch(['admin/leave/:id/decision', 'admin/leaves/:id/decision'])
   @Roles(Role.HR, Role.ADMIN)
   async decide(
     @Param('id') id: string,

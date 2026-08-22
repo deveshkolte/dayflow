@@ -5,8 +5,9 @@ import * as dotenv from 'dotenv';
 import { ValidationPipe } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 
+dotenv.config();
+
 async function bootstrap() {
-  dotenv.config();
   const app = await NestFactory.create(AppModule);
   // Global validation prevents malformed requests from reaching business logic.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

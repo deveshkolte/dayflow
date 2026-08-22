@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -29,10 +30,11 @@ export class EmployeeService {
     return this.serialize(employee);
   }
 
-  async findAll(search?: string, department?: string, isActive?: boolean) {
+  async findAll(search?: string, department?: string, isActive?: boolean, role?: Role) {
     const employees = await this.prisma.user.findMany({
       where: {
         isActive,
+        role: role || undefined,
         department: department || undefined,
         OR: search
           ? [
@@ -50,15 +52,33 @@ export class EmployeeService {
     return employees.map((employee) => this.serialize(employee));
   }
 
-  async updateByAdmin(id: string, input: UpdateEmployeeDto) {
+  async updateByAdmin(id: string, input: UpdateEmployeeDto, actor?: AuthenticatedUser) {
     try {
-      const employee = await this.prisma.user.update({
-        where: { id },
-        data: { ...input, email: input.email?.trim().toLowerCase() },
-        include: { documents: true, salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 } },
+      const result = await this.prisma.$transaction(async (transaction) => {
+        const employee = await transaction.user.update({
+          where: { id },
+          data: { ...input, email: input.email?.trim().toLowerCase() },
+          include: { documents: true, salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 } },
+        });
+
+        if (actor) {
+          await transaction.auditLog.create({
+            data: {
+              actorId: actor.id,
+              action: 'EMPLOYEE_UPDATED',
+              entity: 'User',
+              metadata: {
+                targetUserId: id,
+                updatedFields: Object.keys(input),
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
+
+        return employee;
       });
 
-      return this.serialize(employee);
+      return this.serialize(result);
     } catch (error) {
       if ((error as { code?: string }).code === 'P2002') {
         throw new ConflictException('That email address is already in use.');

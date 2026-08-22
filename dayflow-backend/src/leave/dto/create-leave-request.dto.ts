@@ -9,8 +9,13 @@ export class CreateLeaveRequestDto {
   @IsDateString()
   endDate!: string;
 
+  @IsOptional()
   @IsEnum(LeaveType)
-  type!: LeaveType;
+  type?: LeaveType;
+
+  @IsOptional()
+  @IsString()
+  leaveType?: string;
 
   @IsOptional()
   @IsString()

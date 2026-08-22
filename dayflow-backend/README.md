@@ -100,6 +100,50 @@ npx prisma studio
 - Apply role checks before executing sensitive actions.
 - Return consistent JSON responses for success and error states.
 
+## Implemented API Routes
+
+All routes use the `/api` prefix. Protected routes require `Authorization: Bearer <token>`.
+
+### Authentication
+
+- `POST /api/auth/register` — create an employee account.
+- `POST /api/auth/login` — return a short-lived JWT and safe user identity.
+- `GET /api/auth/me` — return the current authenticated identity.
+
+### Employee and attendance
+
+- `GET/PATCH /api/employees/me` — view or update the employee's allowed profile fields.
+- `GET /api/admin/employees` — HR/Admin employee directory with optional search, department, and active filters.
+- `GET/PATCH /api/admin/employees/:id` — HR/Admin employee detail/update.
+- `POST /api/attendance/check-in` and `POST /api/attendance/check-out` — record the authenticated employee's day.
+- `GET /api/attendance/me` — view personal attendance, optionally filtered by date range.
+- `GET /api/admin/attendance` — HR/Admin attendance list filtered by date, status, or employee.
+
+### Leave and payroll
+
+- `POST /api/leave` and `GET /api/leave/me` — submit or view personal leave requests.
+- `GET /api/admin/leave` — HR/Admin leave queue with status/type filters.
+- `PATCH /api/admin/leave/:id/decision` — approve or reject a pending request with an optional comment.
+- `GET /api/payroll/me` — view personal read-only payroll and salary history.
+- `GET /api/admin/payroll` — HR/Admin payroll list.
+- `PATCH /api/admin/employees/:id/salary-structure` — create an HR/Admin salary version.
+
+### Audit history
+
+- `GET /api/admin/audit-logs` — HR/Admin audit history. Optional filters are `action`, `entity`, `actorId`, `from`, `to`, `page`, and `pageSize` (maximum 100).
+
+The audit response uses `{ items, page, pageSize, total, totalPages }`; each item includes the action, entity, metadata, timestamp, and safe actor summary.
+
+## Verification
+
+Run the dependency-free business-rule tests after dependencies are installed:
+
+```bash
+npm test
+```
+
+The tests do not seed or connect to PostgreSQL. For a real database workflow, configure `DATABASE_URL`, deploy the checked-in migration, and run the seed command owned by the database-data contributor.
+
 ## Related Modules
 - Admin dashboard: `dayflow-admin`
 - Employee portal: `dayflow-employee`
