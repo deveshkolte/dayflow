@@ -196,6 +196,7 @@ export async function updateSalaryStructure(
 }
 
 // ─── Backwards Compatibility Aliases ──────────────────────────────────────────
+export const clearAccessToken = clearSession;
 export const getAdminEmployees = getEmployees;
 export const updateAdminEmployee = (id: string, updates: { status?: string; isActive?: boolean }) =>
   updateEmployee(id, { isActive: updates.status ? updates.status === "active" : updates.isActive });

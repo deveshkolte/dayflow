@@ -68,7 +68,7 @@ export function PayrollTable() {
   }, [enrichedPayroll, searchQuery, statusFilter, departmentFilter]);
 
   // Calculations
-  const totalMonthlyPayroll = payrollList.reduce((acc, p) => acc + p.netSalary, 0);
+  const totalMonthlyPayroll = payrollList.reduce((acc, p) => acc + (p.netSalary ?? 0), 0);
   const paidCount = payrollList.filter((p) => p.status === "Paid").length;
   const pendingCount = payrollList.filter((p) => p.status === "Pending").length;
   const averageSalary = Math.round(totalMonthlyPayroll / (payrollList.length || 1));
@@ -273,7 +273,7 @@ export function PayrollTable() {
                     </TableCell>
                     <TableCell>
                       <strong className="text-xs font-display text-[#454F2D] font-bold">
-                        ₹{p.netSalary.toLocaleString("en-IN")}
+                        ₹{(p.netSalary ?? 0).toLocaleString("en-IN")}
                       </strong>
                     </TableCell>
                     <TableCell>
