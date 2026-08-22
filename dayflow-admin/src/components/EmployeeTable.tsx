@@ -111,32 +111,20 @@ export function EmployeeTable() {
 
     setTogglingStatusId(emp.id);
     const newStatus = emp.status === "active" ? "suspended" : "active";
-<<<<<<< HEAD
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === emp.id ? { ...e, status: newStatus } : e))
-    );
-    toast.add({
-      type: newStatus === "active" ? "success" : "warning",
-      title: "Employee Status Updated",
-      description: `${emp.fullName} has been set to ${newStatus.toUpperCase()}.`,
-    });
-=======
-    const isActive = newStatus === "active";
     
     try {
-      await updateAdminEmployee(emp.id, { isActive });
-      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, status: newStatus } : e));
+      await updateAdminEmployee(emp.id, { status: newStatus });
+      setEmployees((prev) => prev.map((e) => (e.id === emp.id ? { ...e, status: newStatus } : e)));
       toast.add({
-        type: "success",
-        title: "Status Updated",
-        description: `${emp.fullName} is now ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}.`,
+        type: newStatus === "active" ? "success" : "warning",
+        title: "Employee Status Updated",
+        description: `${emp.fullName} has been set to ${newStatus.toUpperCase()}.`,
       });
     } catch (error) {
       handleApiError(error);
     } finally {
       setTogglingStatusId(null);
     }
->>>>>>> origin/feat/wire-employee-table
   };
 
   const handleEditClick = (emp: Employee) => {
