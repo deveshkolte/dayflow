@@ -2,6 +2,8 @@
 // All communication with the NestJS backend lives here.
 // No mock data. If the server is unreachable the caller receives the error.
 
+// Base URL for the NestJS backend API. Uses VITE_API_URL if set (e.g. deployed Vercel backend),
+// otherwise defaults to local NestJS backend at http://localhost:4000/api for local development.
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 
 // ─── Token helpers ────────────────────────────────────────────────────────────

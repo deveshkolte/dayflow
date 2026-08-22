@@ -4,7 +4,7 @@ import { mockEmployees, mockAttendance, mockLeaveRequests } from "@/constants/mo
 import Link from "next/link";
 
 export function KpiGrid() {
-  const totalEmployees = mockEmployees.filter((emp) => emp.status === "active").length;
+  const totalEmployees = mockEmployees.filter((emp) => (emp.status as string) === "active" || emp.isActive).length;
 
   const dates = mockAttendance
     .map((a) => a.date)
@@ -12,20 +12,20 @@ export function KpiGrid() {
   const latestDateStr = dates.length > 0 ? dates[0] : "";
 
   const presentToday = mockAttendance.filter(
-    (a) => a.date === latestDateStr && a.status === "Present"
+    (a) => a.date === latestDateStr && ((a.status as string) === "PRESENT" || (a.status as string) === "Present")
   ).length;
 
   const onLeaveEmpIds = new Set<string>();
 
   mockAttendance.forEach((a) => {
-    if (a.date === latestDateStr && a.status === "Leave") {
+    if (a.date === latestDateStr && ((a.status as string) === "LEAVE" || (a.status as string) === "Leave")) {
       onLeaveEmpIds.add(a.employeeId);
     }
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
   mockLeaveRequests.forEach((req) => {
-    if (req.status === "Approved") {
+    if ((req.status as string) === "APPROVED" || (req.status as string) === "Approved") {
       const startStr = req.startDate.split("T")[0];
       const endStr = req.endDate.split("T")[0];
       if (todayStr >= startStr && todayStr <= endStr) {
@@ -35,7 +35,7 @@ export function KpiGrid() {
   });
 
   const onLeaveCount = onLeaveEmpIds.size || 2;
-  const pendingApprovals = mockLeaveRequests.filter((req) => req.status === "Pending").length;
+  const pendingApprovals = mockLeaveRequests.filter((req) => (req.status as string) === "PENDING" || (req.status as string) === "Pending").length;
 
   return (
     <div className="space-y-4">

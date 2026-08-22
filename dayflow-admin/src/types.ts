@@ -33,10 +33,13 @@ export interface Employee {
   address: string | null;
   department: string | null;
   jobTitle: string | null;
-  role: "EMPLOYEE" | "HR" | "ADMIN";
+  designation?: string | null;
+  role: "EMPLOYEE" | "HR" | "ADMIN" | "employee" | "admin" | "hr";
   isActive: boolean;
+  status?: "active" | "suspended";
   profilePictureUrl: string | null;
   createdAt: string;
+  joiningDate?: string;
   documents: Document[];
   salaryStructure: SalaryStructure | null;
 }
@@ -77,17 +80,21 @@ export interface PayrollRecord {
   id: string;
   employeeId: string;
   employeeName: string;
-  month: string;
-  year: number;
-  baseSalary: number;
-  allowances: Record<string, number>;
-  deductions: Record<string, number>;
+  month?: string;
+  year?: number;
+  baseSalary?: number;
+  basic?: number;
+  hra?: number;
+  allowances: Record<string, number> | number;
+  deductions: Record<string, number> | number;
   netSalary: number;
-  status: "PENDING" | "PAID" | "PROCESSED";
-  paidAt: string | null;
-  createdAt: string;
+  status: "PENDING" | "PAID" | "PROCESSED" | "Paid" | "Pending";
+  paidAt?: string | null;
+  createdAt?: string;
   department?: string;
 }
+
+export type Payroll = PayrollRecord;
 
 export interface AttendanceFilters {
   date?: string;

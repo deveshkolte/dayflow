@@ -76,10 +76,10 @@ export function PayrollTable() {
   const handleOpenSalaryEdit = (p: Payroll) => {
     setEditingPayroll(p);
     setSalaryForm({
-      basic: p.basic,
-      hra: p.hra,
-      allowances: p.allowances,
-      deductions: p.deductions,
+      basic: p.basic ?? p.baseSalary ?? 0,
+      hra: p.hra ?? 0,
+      allowances: typeof p.allowances === "number" ? p.allowances : 0,
+      deductions: typeof p.deductions === "number" ? p.deductions : 0,
     });
   };
 
@@ -246,7 +246,7 @@ export function PayrollTable() {
                     <TableCell className="py-3.5">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8 border border-[#9F7E4A]/50">
-                          <AvatarImage src={p.employee?.profilePictureUrl} alt={p.employeeName} />
+                          <AvatarImage src={p.employee?.profilePictureUrl || undefined} alt={p.employeeName} />
                           <AvatarFallback className="bg-[#454F2D] text-white text-xs font-bold">
                             {p.employeeName.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -263,13 +263,13 @@ export function PayrollTable() {
                       </span>
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-[#534332]">
-                      ₹{p.basic.toLocaleString("en-IN")}
+                      ₹{(p.basic ?? p.baseSalary ?? 0).toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-[#534332]">
-                      ₹{(p.hra + p.allowances).toLocaleString("en-IN")}
+                      ₹{((p.hra ?? 0) + (typeof p.allowances === "number" ? p.allowances : 0)).toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="text-xs font-bold text-red-700">
-                      - ₹{p.deductions.toLocaleString("en-IN")}
+                      - ₹{(typeof p.deductions === "number" ? p.deductions : 0).toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell>
                       <strong className="text-xs font-display text-[#454F2D] font-bold">
