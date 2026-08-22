@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { addEmployee } from "@/services/api";
 
 export default function LoginPage() {
   const { signIn } = useAuth();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("admin@dayflow.local");
   const [password, setPassword] = useState("");
+  const [empId, setEmpId] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [agreeTerms, setAgreeTerms] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,9 +23,18 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
+      if (mode === "signup") {
+        await addEmployee({
+          employeeId: empId || `ADM${Math.floor(100 + Math.random() * 900)}`,
+          email,
+          password,
+          firstName,
+          lastName,
+        });
+      }
       await signIn(email, password);
     } catch (err: unknown) {
-      setError((err as Error).message || "Login failed. Please check your administrative credentials.");
+      setError((err as Error).message || "Authentication failed. Please check your details.");
     } finally {
       setLoading(false);
     }
@@ -61,10 +76,14 @@ export default function LoginPage() {
               <span className="text-xs font-bold uppercase tracking-wider text-[#9F7E4A]">Secure Admin Portal</span>
             </div>
             <h2 className="text-2xl font-extrabold text-[#19271E] text-center tracking-tight">
-              Admin Sign In
+              {mode === "signup" ? "Create Admin Account" : "Admin Sign In"}
             </h2>
             <p className="text-xs text-[#4E5E52] text-center mt-1.5 mb-6">
-              Sign in with your HR or Administrator credentials
+              {mode === "signup" ? (
+                <>Already have an admin account? <button type="button" onClick={() => setMode("signin")} className="font-bold underline text-[#19271E]">Log in</button></>
+              ) : (
+                <>Need an admin account? <button type="button" onClick={() => setMode("signup")} className="font-bold underline text-[#19271E]">Sign up</button></>
+              )}
             </p>
 
             {error && (
@@ -73,7 +92,45 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              {mode === "signup" && (
+                <>
+                  <div className="relative w-full flex items-center">
+                    <span className="absolute left-4 text-sm text-[#6C7E70] pointer-events-none">👤</span>
+                    <input
+                      type="text"
+                      value={empId}
+                      onChange={(e) => setEmpId(e.target.value)}
+                      required
+                      placeholder="Admin Employee ID (e.g. ADM002)"
+                      className="w-full h-11 pl-11 pr-4 rounded-full border border-[#C5D3C3] bg-white text-xs text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative w-full flex items-center">
+                      <span className="absolute left-3.5 text-xs text-[#6C7E70] pointer-events-none">👤</span>
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="First Name"
+                        className="w-full h-11 pl-9 pr-3 rounded-full border border-[#C5D3C3] bg-white text-xs text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
+                      />
+                    </div>
+                    <div className="relative w-full flex items-center">
+                      <span className="absolute left-3.5 text-xs text-[#6C7E70] pointer-events-none">👤</span>
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Last Name"
+                        className="w-full h-11 pl-9 pr-3 rounded-full border border-[#C5D3C3] bg-white text-xs text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div className="relative w-full flex items-center">
                 <span className="absolute left-4 text-sm text-[#6C7E70] pointer-events-none">✉️</span>
                 <input
@@ -82,7 +139,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="Admin Email (admin@dayflow.local)"
-                  className="w-full h-12 pl-11 pr-4 rounded-full border border-[#C5D3C3] bg-white text-sm text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
+                  className="w-full h-11 pl-11 pr-4 rounded-full border border-[#C5D3C3] bg-white text-xs text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
                 />
               </div>
 
@@ -94,7 +151,8 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   placeholder="Password"
-                  className="w-full h-12 pl-11 pr-11 rounded-full border border-[#C5D3C3] bg-white text-sm text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
+                  minLength={8}
+                  className="w-full h-11 pl-11 pr-11 rounded-full border border-[#C5D3C3] bg-white text-xs text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
                 />
                 <button
                   type="button"
@@ -105,25 +163,39 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-[#3D4E41] mt-1">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="accent-[#233626] cursor-pointer"
-                />
-                <span>Keep session active</span>
+              <div className="flex flex-col gap-1 text-xs text-[#3D4E41] mt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="accent-[#233626] cursor-pointer"
+                  />
+                  <span>Keep session active</span>
+                </label>
+                {mode === "signup" && (
+                  <label className="flex items-center gap-2 cursor-pointer mt-1">
+                    <input
+                      type="checkbox"
+                      checked={agreeTerms}
+                      onChange={(e) => setAgreeTerms(e.target.checked)}
+                      required
+                      className="accent-[#233626] cursor-pointer"
+                    />
+                    <span>I agree to Admin Security Terms & Policies</span>
+                  </label>
+                )}
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 rounded-full bg-[#18261C] hover:bg-[#25392A] text-white text-sm font-bold shadow-lg transition-all mt-1 disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full h-11 rounded-full bg-[#18261C] hover:bg-[#25392A] text-white text-xs font-bold shadow-lg transition-all mt-1 disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {loading ? "Authenticating..." : "Log in to Admin Console"}
+                {loading ? "Please wait..." : mode === "signup" ? "Sign Up for Admin Console" : "Log in to Admin Console"}
               </button>
 
-              <div className="flex items-center text-center my-3 text-xs font-semibold text-[#6E8072]">
+              <div className="flex items-center text-center my-2 text-xs font-semibold text-[#6E8072]">
                 <div className="flex-1 border-b border-[#C1CFBF]" />
                 <span className="px-3">Need employee access?</span>
                 <div className="flex-1 border-b border-[#C1CFBF]" />
@@ -131,7 +203,7 @@ export default function LoginPage() {
 
               <a
                 href="http://localhost:5173"
-                className="w-full h-11 rounded-full border border-[#C5D3C3] bg-white text-[#19271E] text-xs font-bold flex items-center justify-center hover:bg-[#F3F7F2] transition-colors"
+                className="w-full h-10 rounded-full border border-[#C5D3C3] bg-white text-[#19271E] text-xs font-bold flex items-center justify-center hover:bg-[#F3F7F2] transition-colors"
               >
                 Switch to Employee Portal →
               </a>
