@@ -30,17 +30,22 @@ This module provides the server-side logic and API layer for the DayFlow HRMS. I
 ```bash
 cd dayflow-backend
 npm install
-cp .env.example .env
-npm run dev
+copy .env.example .env
+npm run start:dev
 ```
+
+Health endpoints:
+
+- Root: http://localhost:4000
+- Health: http://localhost:4000/api/health
 
 ## Environment Variables
 Example:
 
 ```env
-PORT=5000
-JWT_SECRET=your_jwt_secret
+PORT=4000
 DATABASE_URL=postgresql://user:password@localhost:5432/dayflow
+JWT_SECRET=your_jwt_secret
 CLIENT_URL=http://localhost:5173
 ```
 
