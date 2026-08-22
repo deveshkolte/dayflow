@@ -90,6 +90,9 @@ function AuthScreen({ onAuth }: { onAuth: (token: string, user: AuthUser) => voi
   const [empId, setEmpId] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [agreeTerms, setAgreeTerms] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,63 +118,137 @@ function AuthScreen({ onAuth }: { onAuth: (token: string, user: AuthUser) => voi
   };
 
   return (
-    <div className="auth-root">
-      <div className="auth-brand-panel">
-        <div className="auth-brand-logo">DAYFLOW</div>
-        <p className="auth-brand-tagline">Every workday, perfectly aligned.</p>
-        <div className="auth-brand-features">
-          <div className="auth-feature-item">✦ Smart attendance tracking</div>
-          <div className="auth-feature-item">✦ Effortless leave management</div>
-          <div className="auth-feature-item">✦ Transparent payroll visibility</div>
-        </div>
+    <div className="botanical-auth-wrapper">
+      <div className="botanical-top-nav">
+        <span className="botanical-top-title">Sign up / Log In</span>
       </div>
-      <div className="auth-form-panel">
-        <div className="auth-form-card">
-          <div className="auth-header-title">
-            {mode === "signin" ? "Welcome back" : "Create your account"}
+
+      <div className="botanical-auth-frame">
+        {/* Left Side Branding */}
+        <div className="botanical-brand-side">
+          <div className="botanical-logo-group">
+            <span className="botanical-brand-name">Dayflow</span>
+            <svg className="botanical-leaf-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17,8C8,10 5,16 3,21C8.8,21 15.6,16.5 17,8Z" />
+              <path d="M11.8,13.2C10.6,14.6 9,17.1 8.2,20C11,18.8 13.8,17.2 15.5,14.8C14.3,14.3 13,13.8 11.8,13.2Z" opacity="0.6" />
+            </svg>
           </div>
-          <p className="auth-header-sub">
-            {mode === "signin"
-              ? "Sign in to access your Dayflow workspace."
-              : "Register with your employee ID to get started."}
-          </p>
-          <form onSubmit={handleSubmit} className="auth-form">
-            {mode === "signup" && (
-              <>
-                <div className="form-group">
-                  <label>Employee ID *</label>
-                  <input value={empId} onChange={(e) => setEmpId(e.target.value)} required placeholder="EMP001" />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>First Name</label>
-                    <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Aarav" />
+          <p className="botanical-tagline">Every workday, perfectly aligned.</p>
+        </div>
+
+        {/* Right Floating Card */}
+        <div className="botanical-card-container">
+          <div className="botanical-form-card">
+            <h2 className="botanical-card-title">
+              {mode === "signup" ? "Create an account" : "Welcome back"}
+            </h2>
+            <p className="botanical-card-subtitle">
+              {mode === "signup" ? (
+                <>Already have an account? <button type="button" className="botanical-link" onClick={() => setMode("signin")}>Log in</button></>
+              ) : (
+                <>Don't have an account? <button type="button" className="botanical-link" onClick={() => setMode("signup")}>Sign up</button></>
+              )}
+            </p>
+
+            <form onSubmit={handleSubmit} className="botanical-form">
+              {mode === "signup" && (
+                <>
+                  <div className="botanical-input-wrap">
+                    <span className="botanical-input-icon">👤</span>
+                    <input
+                      type="text"
+                      className="botanical-input"
+                      value={empId}
+                      onChange={(e) => setEmpId(e.target.value)}
+                      required
+                      placeholder="Employee ID (e.g. EMP001)"
+                    />
                   </div>
-                  <div className="form-group">
-                    <label>Last Name</label>
-                    <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Sharma" />
+                  <div className="botanical-input-row">
+                    <div className="botanical-input-wrap">
+                      <span className="botanical-input-icon">👤</span>
+                      <input
+                        type="text"
+                        className="botanical-input"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="First Name"
+                      />
+                    </div>
+                    <div className="botanical-input-wrap">
+                      <span className="botanical-input-icon">👤</span>
+                      <input
+                        type="text"
+                        className="botanical-input"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Last Name"
+                      />
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
-            <div className="form-group">
-              <label>Work Email *</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@company.com" />
-            </div>
-            <div className="form-group">
-              <label>Password *</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={8} />
-            </div>
-            <button type="submit" className="btn-primary w-full" disabled={loading}>
-              {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
-            </button>
-          </form>
-          <p className="auth-switch">
-            {mode === "signin" ? "No account? " : "Have an account? "}
-            <button type="button" className="link-btn" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
-              {mode === "signin" ? "Sign up" : "Sign in"}
-            </button>
-          </p>
+                </>
+              )}
+
+              <div className="botanical-input-wrap">
+                <span className="botanical-input-icon">✉️</span>
+                <input
+                  type="email"
+                  className="botanical-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="Email"
+                />
+              </div>
+
+              <div className="botanical-input-wrap">
+                <span className="botanical-input-icon">🔒</span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="botanical-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Password"
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  className="botanical-toggle-pwd"
+                  onClick={() => setShowPassword(!showPassword)}
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "👁️" : "🙈"}
+                </button>
+              </div>
+
+              <div className="botanical-checkbox-group">
+                <label className="botanical-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <span>Remember me</span>
+                </label>
+                {mode === "signup" && (
+                  <label className="botanical-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={agreeTerms}
+                      onChange={(e) => setAgreeTerms(e.target.checked)}
+                      required
+                    />
+                    <span>I agree to <a href="#terms" className="botanical-link">Terms of Service</a> and <a href="#privacy" className="botanical-link">Privacy Policy</a></span>
+                  </label>
+                )}
+              </div>
+
+              <button type="submit" className="botanical-submit-btn" disabled={loading}>
+                {loading ? "Please wait..." : mode === "signup" ? "Sign up" : "Log in"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

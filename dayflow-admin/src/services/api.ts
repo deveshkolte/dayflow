@@ -32,6 +32,8 @@ export function clearSession(): void {
   sessionStorage.removeItem(USER_KEY);
 }
 
+export const clearAccessToken = clearSession;
+
 export function getSavedUser(): AuthenticatedUser | null {
   if (typeof window === "undefined") return null;
   try {

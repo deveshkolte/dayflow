@@ -2,7 +2,7 @@
 
 /* ─── Reset & Base ───────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Lato', sans-serif; background: #F7F6F1; color: #534332; min-height: 100vh; }
+body { font-family: 'Lato', system-ui, -apple-system, sans-serif; background: #E0E7DF; color: #2A362C; min-height: 100vh; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 input, select, textarea { font-family: inherit; font-size: 0.875rem; }
 a { text-decoration: none; color: inherit; }
@@ -94,42 +94,323 @@ img { display: block; max-width: 100%; }
 .toast-info { background: #394032; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
-/* ─── Auth Screen ────────────────────────────────────────────────────────────── */
-.auth-root { display: flex; min-height: 100vh; }
-.auth-brand-panel {
-  flex: 1; background: linear-gradient(160deg, #394032, #454F2D, #534332);
-  color: #F5F1E7; display: flex; flex-direction: column;
-  justify-content: center; padding: 4rem 3.5rem;
+/* ─── Botanical Aesthetic Auth Screen (Matches User Reference Image) ──────────── */
+.botanical-auth-wrapper {
+  min-height: 100vh;
+  background: #DCE3DA;
+  background-image: radial-gradient(#C8D4C3 1px, transparent 1px);
+  background-size: 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
 }
-.auth-brand-logo { font-family: 'Aboreto', cursive; font-size: 2.5rem; letter-spacing: 0.25em; color: #9F7E4A; }
-.auth-brand-tagline { font-size: 1rem; margin-top: 0.5rem; opacity: 0.8; font-style: italic; }
-.auth-brand-features { margin-top: 3rem; display: flex; flex-direction: column; gap: 0.75rem; }
-.auth-feature-item { font-size: 0.9rem; opacity: 0.85; }
-.auth-form-panel {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  padding: 3rem 2rem; background: #F7F6F1;
+
+.botanical-top-nav {
+  margin-bottom: 1.5rem;
 }
-.auth-form-card {
-  background: #fff; border-radius: 1.5rem; padding: 2.5rem;
-  box-shadow: 0 4px 24px rgba(83,67,50,0.08); width: 100%; max-width: 420px;
-  border: 1px solid #DED9CF;
+
+.botanical-top-title {
+  font-family: 'Lato', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1E281F;
+  letter-spacing: -0.01em;
 }
-.auth-header-title { font-family: 'Aboreto', cursive; font-size: 1.5rem; color: #534332; }
-.auth-header-sub { font-size: 0.8125rem; color: #6D6A61; margin-top: 0.4rem; margin-bottom: 1.5rem; }
-.auth-form { display: flex; flex-direction: column; gap: 1rem; }
-.form-group { display: flex; flex-direction: column; gap: 0.35rem; }
-.form-group label { font-size: 0.75rem; font-weight: 700; color: #534332; }
-.form-group input, .form-group select, .form-group textarea {
-  padding: 0.6rem 0.85rem; border-radius: 0.75rem;
-  border: 1px solid #DED9CF; background: #F7F6F1;
-  font-size: 0.875rem; color: #534332; width: 100%;
-  transition: border-color 0.15s;
+
+.botanical-auth-frame {
+  width: 100%;
+  max-width: 960px;
+  min-height: 560px;
+  background-color: #E8EEE6;
+  background-image: url('/login_bg.jpg');
+  background-size: cover;
+  background-position: left center;
+  border-radius: 28px;
+  box-shadow: 0 20px 50px rgba(28, 40, 30, 0.12), 0 2px 10px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  display: flex;
+  position: relative;
+  overflow: hidden;
 }
-.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-  outline: none; border-color: #454F2D;
+
+.botanical-brand-side {
+  flex: 1;
+  padding: 3.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  z-index: 2;
+  position: relative;
 }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-.auth-switch { font-size: 0.8rem; text-align: center; color: #6D6A61; margin-top: 1.25rem; }
+
+.botanical-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.botanical-brand-name {
+  font-family: 'Aboreto', 'Playfair Display', Georgia, serif;
+  font-size: 3.25rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 12px rgba(20, 30, 20, 0.35);
+}
+
+.botanical-leaf-icon {
+  width: 32px;
+  height: 32px;
+  color: #38593B;
+  transform: rotate(15deg);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.botanical-tagline {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 0.4rem;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.3);
+}
+
+.botanical-card-container {
+  width: 440px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.botanical-form-card {
+  width: 100%;
+  background: rgba(234, 239, 233, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  padding: 2.25rem 2rem;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+}
+
+.botanical-card-title {
+  font-family: 'Lato', sans-serif;
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #1F2E23;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+.botanical-card-subtitle {
+  font-size: 0.85rem;
+  color: #4E5E52;
+  text-align: center;
+  margin-top: 0.35rem;
+  margin-bottom: 1.5rem;
+}
+
+.botanical-link {
+  color: #1F2E23;
+  font-weight: 800;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+.botanical-link:hover {
+  color: #38593B;
+}
+
+.botanical-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.botanical-input-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.botanical-input-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.botanical-input-icon {
+  position: absolute;
+  left: 1rem;
+  font-size: 0.9rem;
+  color: #788A7C;
+  pointer-events: none;
+}
+
+.botanical-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 1rem 0 2.75rem;
+  border-radius: 9999px;
+  border: 1px solid #D2DDD0;
+  background: #FFFFFF;
+  font-size: 0.875rem;
+  color: #1F2E23;
+  transition: all 0.2s ease;
+}
+
+.botanical-input::placeholder {
+  color: #93A395;
+  font-weight: 400;
+}
+
+.botanical-input:focus {
+  outline: none;
+  border-color: #2E4532;
+  box-shadow: 0 0 0 3px rgba(46, 69, 50, 0.12);
+}
+
+.botanical-toggle-pwd {
+  position: absolute;
+  right: 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.botanical-toggle-pwd:hover {
+  opacity: 1;
+}
+
+.botanical-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.4rem;
+}
+
+.botanical-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: #3D4E41;
+  cursor: pointer;
+  user-select: none;
+}
+
+.botanical-checkbox-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #233626;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.botanical-submit-btn {
+  width: 100%;
+  height: 48px;
+  border-radius: 9999px;
+  background: #1C2B20;
+  color: #FFFFFF;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+  box-shadow: 0 4px 14px rgba(28, 43, 32, 0.25);
+  margin-top: 0.25rem;
+}
+
+.botanical-submit-btn:hover {
+  background: #2D4232;
+}
+
+.botanical-submit-btn:active {
+  transform: scale(0.99);
+}
+
+.botanical-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.botanical-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 0.8rem 0 0.6rem;
+  color: #758679;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.botanical-divider::before,
+.botanical-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #C9D6C7;
+}
+
+.botanical-divider span {
+  padding: 0 0.75rem;
+}
+
+.botanical-social-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.25rem;
+}
+
+.botanical-social-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 1px solid #D2DDD0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.botanical-social-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-color: #B5C5B3;
+}
+
+.botanical-social-btn.facebook { color: #1877F2; }
+.botanical-social-btn.linkedin { color: #0A66C2; }
+
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .botanical-auth-frame {
+    flex-direction: column;
+    min-height: auto;
+  }
+  .botanical-brand-side {
+    padding: 2.5rem 2rem 1.5rem;
+    text-align: center;
+    align-items: center;
+  }
+  .botanical-card-container {
+    width: 100%;
+    padding: 1.5rem;
+  }
+}
 
 /* ─── Shell ──────────────────────────────────────────────────────────────────── */
 .shell { display: flex; min-height: 100vh; }
@@ -423,9 +704,7 @@ img { display: block; max-width: 100%; }
 .payslip-net { background: rgba(69,79,45,0.05); padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem; font-weight: 700; border: 1px solid rgba(69,79,45,0.15); }
 .payslip-status { margin-top: 1rem; font-size: 0.75rem; text-align: center; color: #6D6A61; }
 
-/* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .auth-brand-panel { display: none; }
   .sidebar { display: none; }
   .profile-grid { grid-template-columns: 1fr; }
   .welcome-banner { flex-direction: column; gap: 0.5rem; }

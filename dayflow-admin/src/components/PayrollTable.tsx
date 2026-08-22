@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { mockPayroll, mockEmployees } from "@/constants/mockData";
-import { Payroll } from "@/types";
+import { useState, useEffect, useMemo } from "react";
+import type { PayrollRecord } from "@/types";
+import { getPayroll, updateSalaryStructure } from "@/services/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -28,104 +28,80 @@ import {
 import { toast } from "@/components/ui/toast";
 
 export function PayrollTable() {
-  const [payrollList, setPayrollList] = useState<Payroll[]>(mockPayroll);
+  const [payrollList, setPayrollList] = useState<PayrollRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
 
-  const [editingPayroll, setEditingPayroll] = useState<Payroll | null>(null);
+  const [editingRecord, setEditingRecord] = useState<PayrollRecord | null>(null);
   const [salaryForm, setSalaryForm] = useState({
-    basic: 0,
-    hra: 0,
-    allowances: 0,
-    deductions: 0,
+    baseSalary: 50000,
+    allowances: 10000,
   });
+  const [saving, setSaving] = useState(false);
 
-  const uniqueDepartments = useMemo(() => {
-    return Array.from(new Set(mockEmployees.map((e) => e.department))).sort();
-  }, []);
+  const fetchPayroll = async () => {
+    try {
+      setLoading(true);
+      const data = await getPayroll();
+      setPayrollList(data);
+    } catch (err) {
+      toast.add({ type: "error", title: "Failed to load payroll", description: (err as Error).message });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const enrichedPayroll = useMemo(() => {
-    return payrollList.map((p) => {
-      const emp = mockEmployees.find((e) => e.employeeId === p.employeeId);
-      return {
-        ...p,
-        employee: emp,
-        department: emp?.department || "General",
-      };
-    });
-  }, [payrollList]);
+  useEffect(() => { fetchPayroll(); }, []);
 
   const filteredPayroll = useMemo(() => {
-    return enrichedPayroll.filter((p) => {
+    return payrollList.filter((p) => {
       const matchesSearch =
         p.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.employeeId.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-      const matchesDept = departmentFilter === "all" || p.department === departmentFilter;
-      return matchesSearch && matchesStatus && matchesDept;
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter.toUpperCase();
+      return matchesSearch && matchesStatus;
     });
-  }, [enrichedPayroll, searchQuery, statusFilter, departmentFilter]);
+  }, [payrollList, searchQuery, statusFilter]);
 
-  // Calculations
   const totalMonthlyPayroll = payrollList.reduce((acc, p) => acc + p.netSalary, 0);
-  const paidCount = payrollList.filter((p) => p.status === "Paid").length;
-  const pendingCount = payrollList.filter((p) => p.status === "Pending").length;
+  const paidCount = payrollList.filter((p) => p.status === "PAID").length;
+  const pendingCount = payrollList.filter((p) => p.status === "PENDING").length;
   const averageSalary = Math.round(totalMonthlyPayroll / (payrollList.length || 1));
 
-  const handleOpenSalaryEdit = (p: Payroll) => {
-    setEditingPayroll(p);
+  const handleOpenSalaryEdit = (p: PayrollRecord) => {
+    setEditingRecord(p);
+    const allowSum = Object.values(p.allowances || {}).reduce((a, b) => a + b, 0);
     setSalaryForm({
-      basic: p.basic,
-      hra: p.hra,
-      allowances: p.allowances,
-      deductions: p.deductions,
+      baseSalary: p.baseSalary,
+      allowances: allowSum,
     });
   };
 
-  const calculatedNet = useMemo(() => {
-    return Number(salaryForm.basic) + Number(salaryForm.hra) + Number(salaryForm.allowances) - Number(salaryForm.deductions);
-  }, [salaryForm]);
-
-  const handleSaveSalaryStructure = (e: React.FormEvent) => {
+  const handleSaveSalaryStructure = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPayroll) return;
+    if (!editingRecord) return;
+    setSaving(true);
 
-    const netSalary = calculatedNet;
+    try {
+      await updateSalaryStructure(editingRecord.employeeId, {
+        baseSalary: Number(salaryForm.baseSalary),
+        allowances: { "Special Allowance": Number(salaryForm.allowances) },
+        effectiveFrom: new Date().toISOString().slice(0, 10),
+      });
 
-    setPayrollList((prev) =>
-      prev.map((p) =>
-        p.id === editingPayroll.id
-          ? {
-              ...p,
-              basic: Number(salaryForm.basic),
-              hra: Number(salaryForm.hra),
-              allowances: Number(salaryForm.allowances),
-              deductions: Number(salaryForm.deductions),
-              netSalary,
-            }
-          : p
-      )
-    );
-
-    toast.add({
-      type: "success",
-      title: "Salary Structure Updated",
-      description: `New compensation structure applied for ${editingPayroll.employeeName}.`,
-    });
-
-    setEditingPayroll(null);
-  };
-
-  const handleMarkPaid = (p: Payroll) => {
-    setPayrollList((prev) =>
-      prev.map((item) => (item.id === p.id ? { ...item, status: "Paid" } : item))
-    );
-    toast.add({
-      type: "success",
-      title: "Payment Processed",
-      description: `August 2026 salary for ${p.employeeName} marked as Paid.`,
-    });
+      await fetchPayroll();
+      toast.add({
+        type: "success",
+        title: "Salary Structure Updated",
+        description: `New compensation structure applied for ${editingRecord.employeeName}.`,
+      });
+      setEditingRecord(null);
+    } catch (err) {
+      toast.add({ type: "error", title: "Update failed", description: (err as Error).message });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -177,7 +153,7 @@ export function PayrollTable() {
         </div>
       </div>
 
-      {/* Filter and Action Bar */}
+      {/* Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-white p-3.5 rounded-2xl border border-[#DED9CF] shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6D6A61]" />
@@ -190,28 +166,14 @@ export function PayrollTable() {
         </div>
 
         <div className="flex gap-2.5">
-          <Select value={departmentFilter} onValueChange={(val) => setDepartmentFilter(val || "all")}>
-            <SelectTrigger className="w-[150px] rounded-xl border-[#DED9CF] bg-[#F7F6F1] text-xs font-semibold text-[#534332]">
-              <SelectValue placeholder="Department" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-[#DED9CF]">
-              <SelectItem value="all">All Departments</SelectItem>
-              {uniqueDepartments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val || "all")}>
             <SelectTrigger className="w-[130px] rounded-xl border-[#DED9CF] bg-[#F7F6F1] text-xs font-semibold text-[#534332]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent className="rounded-xl border-[#DED9CF]">
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Paid">Paid</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -224,9 +186,9 @@ export function PayrollTable() {
             <TableHeader className="bg-[#F7F6F1]">
               <TableRow className="border-b border-[#DED9CF]">
                 <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Employee</TableHead>
-                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Department</TableHead>
+                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Month</TableHead>
                 <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Base Salary</TableHead>
-                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">HRA & Allowances</TableHead>
+                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Allowances</TableHead>
                 <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Deductions</TableHead>
                 <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Net Salary</TableHead>
                 <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Status</TableHead>
@@ -234,10 +196,14 @@ export function PayrollTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPayroll.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-32 text-center text-[#6D6A61]">Loading payroll records…</TableCell>
+                </TableRow>
+              ) : filteredPayroll.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="h-32 text-center text-[#6D6A61]">
-                    No payroll records matching the filter found.
+                    No payroll records found.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -246,7 +212,6 @@ export function PayrollTable() {
                     <TableCell className="py-3.5">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8 border border-[#9F7E4A]/50">
-                          <AvatarImage src={p.employee?.profilePictureUrl} alt={p.employeeName} />
                           <AvatarFallback className="bg-[#454F2D] text-white text-xs font-bold">
                             {p.employeeName.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -257,19 +222,15 @@ export function PayrollTable() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-[#F7F6F1] border border-[#DED9CF] text-[#534332]">
-                        {p.department}
-                      </span>
+                    <TableCell className="text-xs font-semibold text-[#534332]">{p.month} {p.year}</TableCell>
+                    <TableCell className="text-xs font-semibold text-[#534332]">
+                      ₹{p.baseSalary.toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-[#534332]">
-                      ₹{p.basic.toLocaleString("en-IN")}
-                    </TableCell>
-                    <TableCell className="text-xs font-semibold text-[#534332]">
-                      ₹{(p.hra + p.allowances).toLocaleString("en-IN")}
+                      ₹{Object.values(p.allowances || {}).reduce((a, b) => a + b, 0).toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="text-xs font-bold text-red-700">
-                      - ₹{p.deductions.toLocaleString("en-IN")}
+                      - ₹{Object.values(p.deductions || {}).reduce((a, b) => a + b, 0).toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell>
                       <strong className="text-xs font-display text-[#454F2D] font-bold">
@@ -277,7 +238,7 @@ export function PayrollTable() {
                       </strong>
                     </TableCell>
                     <TableCell>
-                      {p.status === "Paid" ? (
+                      {p.status === "PAID" ? (
                         <Badge className="bg-[#454F2D]/15 text-[#454F2D] border border-[#454F2D]/30 font-bold text-[11px]">
                           Paid
                         </Badge>
@@ -288,26 +249,15 @@ export function PayrollTable() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenSalaryEdit(p)}
-                          className="h-8 rounded-xl text-xs font-bold text-[#534332] hover:bg-[#F7F6F1] border border-transparent hover:border-[#DED9CF]"
-                        >
-                          <Edit3 className="h-3.5 w-3.5 mr-1 text-[#797F3E]" />
-                          Edit Salary
-                        </Button>
-                        {p.status === "Pending" && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleMarkPaid(p)}
-                            className="h-8 rounded-xl bg-[#454F2D] hover:bg-[#394032] text-white text-xs font-bold shadow-xs"
-                          >
-                            Mark Paid
-                          </Button>
-                        )}
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenSalaryEdit(p)}
+                        className="h-8 rounded-xl text-xs font-bold text-[#534332] hover:bg-[#F7F6F1] border border-transparent hover:border-[#DED9CF]"
+                      >
+                        <Edit3 className="h-3.5 w-3.5 mr-1 text-[#797F3E]" />
+                        Edit Structure
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -318,72 +268,48 @@ export function PayrollTable() {
       </div>
 
       {/* Edit Salary Structure Modal */}
-      {editingPayroll && (
-        <Dialog open={Boolean(editingPayroll)} onOpenChange={() => setEditingPayroll(null)}>
+      {editingRecord && (
+        <Dialog open={Boolean(editingRecord)} onOpenChange={() => setEditingRecord(null)}>
           <DialogContent className="sm:max-w-md rounded-2xl border-[#DED9CF]">
             <DialogHeader>
               <DialogTitle className="font-display text-lg text-[#534332]">Update Salary Structure</DialogTitle>
               <DialogDescription className="text-xs text-[#6D6A61]">
-                Adjust basic pay, allowances, and deductions for <strong className="text-[#534332]">{editingPayroll.employeeName}</strong>.
+                Adjust basic pay and allowances for <strong className="text-[#534332]">{editingRecord.employeeName}</strong>.
               </DialogDescription>
             </DialogHeader>
 
             <form onSubmit={handleSaveSalaryStructure} className="space-y-3.5 py-2 text-xs">
               <div className="space-y-1.5">
-                <label className="font-bold text-[#534332]">Basic Salary (₹)</label>
+                <label className="font-bold text-[#534332]">Base Salary (₹)</label>
                 <Input
                   type="number"
-                  value={salaryForm.basic}
-                  onChange={(e) => setSalaryForm({ ...salaryForm, basic: Number(e.target.value) })}
+                  value={salaryForm.baseSalary}
+                  onChange={(e) => setSalaryForm({ ...salaryForm, baseSalary: Number(e.target.value) })}
                   className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
                   required
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="font-bold text-[#534332]">HRA Allowance (₹)</label>
-                  <Input
-                    type="number"
-                    value={salaryForm.hra}
-                    onChange={(e) => setSalaryForm({ ...salaryForm, hra: Number(e.target.value) })}
-                    className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="font-bold text-[#534332]">Special Allowances (₹)</label>
-                  <Input
-                    type="number"
-                    value={salaryForm.allowances}
-                    onChange={(e) => setSalaryForm({ ...salaryForm, allowances: Number(e.target.value) })}
-                    className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
-                    required
-                  />
-                </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-[#534332]">Total Deductions (PF & Tax) (₹)</label>
+                <label className="font-bold text-[#534332]">Allowances (₹)</label>
                 <Input
                   type="number"
-                  value={salaryForm.deductions}
-                  onChange={(e) => setSalaryForm({ ...salaryForm, deductions: Number(e.target.value) })}
+                  value={salaryForm.allowances}
+                  onChange={(e) => setSalaryForm({ ...salaryForm, allowances: Number(e.target.value) })}
                   className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
                   required
                 />
               </div>
 
-              {/* Live Net Calculation Preview */}
               <div className="p-3.5 rounded-xl bg-[#454F2D]/10 border border-[#454F2D]/30 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#454F2D] block">
-                    Calculated Monthly Net Pay
+                    Total Estimated Net Salary
                   </span>
-                  <p className="text-[11px] text-[#6D6A61]">Basic + HRA + Allowances - Deductions</p>
+                  <p className="text-[11px] text-[#6D6A61]">Base + Allowances</p>
                 </div>
                 <strong className="text-base font-display text-[#454F2D]">
-                  ₹{calculatedNet.toLocaleString("en-IN")}
+                  ₹{(Number(salaryForm.baseSalary) + Number(salaryForm.allowances)).toLocaleString("en-IN")}
                 </strong>
               </div>
 
@@ -391,16 +317,17 @@ export function PayrollTable() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setEditingPayroll(null)}
+                  onClick={() => setEditingRecord(null)}
                   className="rounded-xl border-[#DED9CF] text-xs"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
+                  disabled={saving}
                   className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl text-xs font-bold"
                 >
-                  Save Salary Structure
+                  {saving ? "Saving…" : "Save Salary Structure"}
                 </Button>
               </DialogFooter>
             </form>

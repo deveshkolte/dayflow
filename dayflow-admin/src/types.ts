@@ -8,6 +8,8 @@ export interface AuthenticatedUser {
   role: "EMPLOYEE" | "HR" | "ADMIN";
 }
 
+export type Payroll = PayrollRecord;
+
 export interface SalaryStructure {
   baseSalary: number;
   allowances: Record<string, number>;

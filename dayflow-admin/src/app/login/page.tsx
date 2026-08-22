@@ -7,6 +7,8 @@ export default function LoginPage() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState("admin@dayflow.local");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,117 +19,124 @@ export default function LoginPage() {
     try {
       await signIn(email, password);
     } catch (err: unknown) {
-      setError((err as Error).message || "Login failed. Please check your credentials.");
+      setError((err as Error).message || "Login failed. Please check your administrative credentials.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{
-      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: "#F7F6F1", fontFamily: "'Lato', sans-serif",
-    }}>
-      <div style={{
-        display: "flex", width: "100%", maxWidth: "900px", borderRadius: "1.5rem",
-        overflow: "hidden", boxShadow: "0 8px 40px rgba(83,67,50,0.12)", border: "1px solid #DED9CF",
-      }}>
-        {/* Brand panel */}
-        <div style={{
-          flex: 1, background: "linear-gradient(160deg, #394032, #454F2D, #534332)",
-          padding: "3rem 2.5rem", color: "#F5F1E7", display: "flex", flexDirection: "column", justifyContent: "center",
-        }}>
-          <div style={{ fontFamily: "'Aboreto', cursive", fontSize: "2rem", letterSpacing: "0.25em", color: "#9F7E4A" }}>
-            DAYFLOW
+    <div className="min-h-screen bg-[#D0D9CE] bg-[radial-gradient(#B6C5B3_1px,transparent_1px)] [background-size:24px_24px] flex flex-col items-center justify-center p-6 font-sans">
+      <div className="mb-6 flex items-center gap-2">
+        <span className="text-xs font-extrabold uppercase tracking-[0.2em] text-[#2D4232] bg-[#E3EBE1] px-4 py-1.5 rounded-full border border-[#B8C8B5]">
+          🛡️ Dayflow Administration Console
+        </span>
+      </div>
+
+      <div className="w-full max-w-[960px] min-h-[560px] bg-[#E2EAE0] bg-[url('/login_bg.jpg')] bg-cover bg-left rounded-[28px] shadow-2xl border border-white/70 flex flex-col md:flex-row relative overflow-hidden">
+        {/* Left Side Branding */}
+        <div className="flex-1 p-8 md:p-14 flex flex-col justify-center z-10 relative bg-gradient-to-r from-black/40 via-black/20 to-transparent">
+          <div className="flex items-center gap-2">
+            <span className="font-display text-5xl font-extrabold text-white tracking-tight drop-shadow-lg">
+              Dayflow
+            </span>
+            <span className="text-xl font-bold text-[#F3E5AB] bg-[#2D4232]/80 px-2.5 py-0.5 rounded-md border border-[#F3E5AB]/40 backdrop-blur-sm shadow-sm">
+              ADMIN
+            </span>
           </div>
-          <div style={{ fontSize: "0.85rem", opacity: 0.75, marginTop: "0.5rem", fontStyle: "italic" }}>
-            Every workday, perfectly aligned.
-          </div>
-          <div style={{ marginTop: "2.5rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>✦ Workforce oversight & analytics</div>
-            <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>✦ Leave request approvals</div>
-            <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>✦ Payroll & compensation management</div>
-          </div>
-          <div style={{
-            marginTop: "2rem", padding: "0.75rem 1rem", borderRadius: "0.75rem",
-            background: "rgba(159,126,74,0.15)", border: "1px solid rgba(159,126,74,0.3)",
-            fontSize: "0.75rem", color: "#9F7E4A", fontWeight: 600,
-          }}>
-            🔒 Admin Console — HR & Admin access only
+          <p className="text-white/95 text-base font-medium mt-2 drop-shadow">
+            Workforce Oversight, Leave Approvals & Payroll
+          </p>
+          <div className="mt-8 flex flex-col gap-2">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1C2B20]/75 backdrop-blur-md border border-[#F3E5AB]/40 text-[#F5E6B3] text-xs font-bold w-fit shadow-md">
+              🔒 Executive & HR Administrator Access Only
+            </div>
           </div>
         </div>
 
-        {/* Login form */}
-        <div style={{ flex: 1, background: "#fff", padding: "3rem 2.5rem", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <h2 style={{ fontFamily: "'Aboreto', cursive", fontSize: "1.5rem", color: "#534332", marginBottom: "0.4rem" }}>
-            Admin Sign In
-          </h2>
-          <p style={{ fontSize: "0.8125rem", color: "#6D6A61", marginBottom: "1.75rem" }}>
-            Access the Dayflow HR administration console.
-          </p>
-
-          {error && (
-            <div style={{
-              padding: "0.75rem 1rem", borderRadius: "0.75rem",
-              background: "#fee2e2", border: "1px solid #fca5a5",
-              color: "#b91c1c", fontSize: "0.8125rem", marginBottom: "1rem",
-            }}>
-              {error}
+        {/* Right Floating Card */}
+        <div className="w-full md:w-[440px] p-6 flex items-center justify-center z-20">
+          <div className="w-full bg-[#E5ECE3]/95 backdrop-blur-xl border border-white/90 rounded-[24px] p-8 shadow-xl">
+            <div className="flex items-center justify-center gap-1.5 mb-1 text-center">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#9F7E4A]">Secure Admin Portal</span>
             </div>
-          )}
+            <h2 className="text-2xl font-extrabold text-[#19271E] text-center tracking-tight">
+              Admin Sign In
+            </h2>
+            <p className="text-xs text-[#4E5E52] text-center mt-1.5 mb-6">
+              Sign in with your HR or Administrator credentials
+            </p>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#534332" }}>Work Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                style={{
-                  padding: "0.65rem 0.9rem", borderRadius: "0.75rem",
-                  border: "1px solid #DED9CF", background: "#F7F6F1",
-                  fontSize: "0.875rem", color: "#534332", outline: "none",
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#534332" }}>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                style={{
-                  padding: "0.65rem 0.9rem", borderRadius: "0.75rem",
-                  border: "1px solid #DED9CF", background: "#F7F6F1",
-                  fontSize: "0.875rem", color: "#534332", outline: "none",
-                }}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                marginTop: "0.5rem", padding: "0.7rem 1.25rem",
-                background: loading ? "#6D6A61" : "#454F2D",
-                color: "#fff", border: "none", borderRadius: "0.75rem",
-                fontSize: "0.875rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-                transition: "background 0.15s", fontFamily: "'Lato', sans-serif",
-              }}
-            >
-              {loading ? "Signing in…" : "Sign In to Admin Console"}
-            </button>
-          </form>
+            {error && (
+              <div className="p-3 rounded-2xl bg-red-100 border border-red-300 text-red-800 text-xs mb-4 font-medium">
+                {error}
+              </div>
+            )}
 
-          <p style={{ marginTop: "1.5rem", fontSize: "0.75rem", color: "#6D6A61", textAlign: "center" }}>
-            Employee? Use the{" "}
-            <a href="http://localhost:5173" style={{ color: "#454F2D", fontWeight: 700 }}>
-              Employee Portal
-            </a>{" "}
-            instead.
-          </p>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+              <div className="relative w-full flex items-center">
+                <span className="absolute left-4 text-sm text-[#6C7E70] pointer-events-none">✉️</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="Admin Email (admin@dayflow.local)"
+                  className="w-full h-12 pl-11 pr-4 rounded-full border border-[#C5D3C3] bg-white text-sm text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
+                />
+              </div>
+
+              <div className="relative w-full flex items-center">
+                <span className="absolute left-4 text-sm text-[#6C7E70] pointer-events-none">🔒</span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Password"
+                  className="w-full h-12 pl-11 pr-11 rounded-full border border-[#C5D3C3] bg-white text-sm text-[#19271E] focus:outline-none focus:border-[#233626] font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 text-sm opacity-60 hover:opacity-100"
+                >
+                  {showPassword ? "👁️" : "🙈"}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-[#3D4E41] mt-1">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="accent-[#233626] cursor-pointer"
+                />
+                <span>Keep session active</span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 rounded-full bg-[#18261C] hover:bg-[#25392A] text-white text-sm font-bold shadow-lg transition-all mt-1 disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {loading ? "Authenticating..." : "Log in to Admin Console"}
+              </button>
+
+              <div className="flex items-center text-center my-3 text-xs font-semibold text-[#6E8072]">
+                <div className="flex-1 border-b border-[#C1CFBF]" />
+                <span className="px-3">Need employee access?</span>
+                <div className="flex-1 border-b border-[#C1CFBF]" />
+              </div>
+
+              <a
+                href="http://localhost:5173"
+                className="w-full h-11 rounded-full border border-[#C5D3C3] bg-white text-[#19271E] text-xs font-bold flex items-center justify-center hover:bg-[#F3F7F2] transition-colors"
+              >
+                Switch to Employee Portal →
+              </a>
+            </form>
+          </div>
         </div>
       </div>
     </div>

@@ -1,75 +1,71 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Users, CheckCircle2, Calendar, Clock, ArrowRight } from "lucide-react";
 import { KpiCard } from "./KpiCard";
-import { mockEmployees, mockAttendance, mockLeaveRequests } from "@/constants/mockData";
+import { getEmployees, getLeaveRequests, getAttendance } from "@/services/api";
 import Link from "next/link";
 
 export function KpiGrid() {
-  const totalEmployees = mockEmployees.filter((emp) => emp.status === "active").length;
+  const [totalWorkforce, setTotalWorkforce] = useState(0);
+  const [presentToday, setPresentToday] = useState(0);
+  const [onLeaveCount, setOnLeaveCount] = useState(0);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
 
-  const dates = mockAttendance
-    .map((a) => a.date)
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-  const latestDateStr = dates.length > 0 ? dates[0] : "";
+  useEffect(() => {
+    getEmployees()
+      .then((employees) => setTotalWorkforce(employees.filter((e) => e.isActive).length))
+      .catch(() => {});
 
-  const presentToday = mockAttendance.filter(
-    (a) => a.date === latestDateStr && a.status === "Present"
-  ).length;
+    getLeaveRequests()
+      .then((leaves) => {
+        setPendingApprovals(leaves.filter((l) => l.status === "PENDING").length);
+        const today = new Date().toISOString().slice(0, 10);
+        const activeLeaves = leaves.filter(
+          (l) => l.status === "APPROVED" && l.startDate <= today && l.endDate >= today
+        );
+        setOnLeaveCount(activeLeaves.length);
+      })
+      .catch(() => {});
 
-  const onLeaveEmpIds = new Set<string>();
-
-  mockAttendance.forEach((a) => {
-    if (a.date === latestDateStr && a.status === "Leave") {
-      onLeaveEmpIds.add(a.employeeId);
-    }
-  });
-
-  const todayStr = new Date().toISOString().split("T")[0];
-  mockLeaveRequests.forEach((req) => {
-    if (req.status === "Approved") {
-      const startStr = req.startDate.split("T")[0];
-      const endStr = req.endDate.split("T")[0];
-      if (todayStr >= startStr && todayStr <= endStr) {
-        onLeaveEmpIds.add(req.employeeId);
-      }
-    }
-  });
-
-  const onLeaveCount = onLeaveEmpIds.size || 2;
-  const pendingApprovals = mockLeaveRequests.filter((req) => req.status === "Pending").length;
+    const today = new Date().toISOString().slice(0, 10);
+    getAttendance({ date: today })
+      .then((att) => setPresentToday(att.filter((a) => a.status === "PRESENT").length))
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Total Workforce"
-          value={totalEmployees}
+          value={totalWorkforce}
           icon={Users}
-          subtitle="15 active members"
-          trend={{ value: "+2 onboarded this month", direction: "up" }}
+          subtitle="Active directory members"
+          trend={{ value: "Live directory data", direction: "up" }}
         />
         <KpiCard
           title="Present Today"
           value={presentToday}
           icon={CheckCircle2}
-          subtitle="92% attendance rate"
-          trend={{ value: "On track with target", direction: "up" }}
+          subtitle="Checked-in employees today"
+          trend={{ value: "Real-time records", direction: "up" }}
         />
         <KpiCard
           title="On Leave"
           value={onLeaveCount}
           icon={Calendar}
-          subtitle="Approved by HR"
+          subtitle="Approved leave today"
         />
         <KpiCard
           title="Pending Approvals"
           value={pendingApprovals}
           icon={Clock}
-          subtitle="Requires admin action"
-          trend={{ value: `${pendingApprovals} awaiting review`, direction: "down" }}
+          subtitle="Requires HR decision"
+          trend={{ value: `${pendingApprovals} awaiting review`, direction: pendingApprovals > 0 ? "down" : "up" }}
         />
       </div>
 
-      {/* Quick Action Alert Banner if there are pending leave requests */}
       {pendingApprovals > 0 && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[#9F7E4A]/10 border border-[#9F7E4A]/30">
           <div className="flex items-center gap-3">

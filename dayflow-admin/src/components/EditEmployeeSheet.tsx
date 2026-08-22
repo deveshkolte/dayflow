@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Employee } from "@/types";
+import { updateEmployee } from "@/services/api";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,52 +18,46 @@ interface EditEmployeeSheetProps {
 
 export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: EditEmployeeSheetProps) {
   const [formData, setFormData] = useState<Partial<Employee>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (employee && open) {
       setFormData(employee);
-      setErrors({});
     }
   }, [employee, open]);
 
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.fullName?.trim()) newErrors.fullName = "Full name is required";
-    if (!formData.phone?.trim()) newErrors.phone = "Phone is required";
-    if (formData.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        newErrors.email = "Invalid email address";
-      }
-    } else {
-      newErrors.email = "Email is required";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const handleSave = async () => {
+    if (!employee) return;
+    setSaving(true);
+    try {
+      const updated = await updateEmployee(employee.id, {
+        firstName: formData.firstName || undefined,
+        lastName: formData.lastName || undefined,
+        email: formData.email || undefined,
+        phone: formData.phone || undefined,
+        address: formData.address || undefined,
+        department: formData.department || undefined,
+        jobTitle: formData.jobTitle || undefined,
+        isActive: formData.isActive,
+      });
 
-  const handleChange = (field: keyof Employee, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSave = () => {
-    if (validate() && employee) {
-      onSave(formData as Employee);
+      onSave(updated);
       onOpenChange(false);
       toast.add({
         type: "success",
-        title: "Employee Details Saved",
-        description: `${formData.fullName}'s profile information has been updated.`,
+        title: "Employee Profile Updated",
+        description: `${updated.fullName}'s profile information has been saved.`,
       });
+    } catch (err) {
+      toast.add({
+        type: "error",
+        title: "Failed to Update Profile",
+        description: (err as Error).message,
+      });
+    } finally {
+      setSaving(false);
     }
   };
-
-  const isFormValid =
-    formData.fullName?.trim() &&
-    formData.phone?.trim() &&
-    formData.email &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -74,36 +69,44 @@ export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: Edit
           </SheetDescription>
         </SheetHeader>
         <div className="grid gap-4 py-5 text-xs">
-          <div className="space-y-1.5">
-            <label htmlFor="fullName" className="font-bold text-[#534332]">Full Name *</label>
-            <Input
-              id="fullName"
-              className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
-              value={formData.fullName || ""}
-              onChange={(e) => handleChange("fullName", e.target.value)}
-            />
-            {errors.fullName && <p className="text-xs text-red-600">{errors.fullName}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="firstName" className="font-bold text-[#534332]">First Name</label>
+              <Input
+                id="firstName"
+                className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
+                value={formData.firstName || ""}
+                onChange={(e) => setFormData((p) => ({ ...p, firstName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="lastName" className="font-bold text-[#534332]">Last Name</label>
+              <Input
+                id="lastName"
+                className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
+                value={formData.lastName || ""}
+                onChange={(e) => setFormData((p) => ({ ...p, lastName: e.target.value }))}
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="email" className="font-bold text-[#534332]">Work Email *</label>
+            <label htmlFor="email" className="font-bold text-[#534332]">Work Email</label>
             <Input
               id="email"
               type="email"
               className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
               value={formData.email || ""}
-              onChange={(e) => handleChange("email", e.target.value)}
+              onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
             />
-            {errors.email && <p className="text-xs text-red-600">{errors.email}</p>}
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="phone" className="font-bold text-[#534332]">Phone Number *</label>
+            <label htmlFor="phone" className="font-bold text-[#534332]">Phone Number</label>
             <Input
               id="phone"
               className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
               value={formData.phone || ""}
-              onChange={(e) => handleChange("phone", e.target.value)}
+              onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
             />
-            {errors.phone && <p className="text-xs text-red-600">{errors.phone}</p>}
           </div>
           <div className="space-y-1.5">
             <label htmlFor="department" className="font-bold text-[#534332]">Department</label>
@@ -111,23 +114,23 @@ export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: Edit
               id="department"
               className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
               value={formData.department || ""}
-              onChange={(e) => handleChange("department", e.target.value)}
+              onChange={(e) => setFormData((p) => ({ ...p, department: e.target.value }))}
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="designation" className="font-bold text-[#534332]">Designation</label>
+            <label htmlFor="jobTitle" className="font-bold text-[#534332]">Job Title</label>
             <Input
-              id="designation"
+              id="jobTitle"
               className="rounded-xl border-[#DED9CF] text-xs bg-[#F7F6F1]"
-              value={formData.designation || ""}
-              onChange={(e) => handleChange("designation", e.target.value)}
+              value={formData.jobTitle || ""}
+              onChange={(e) => setFormData((p) => ({ ...p, jobTitle: e.target.value }))}
             />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="status" className="font-bold text-[#534332]">Access Status</label>
             <Select
-              value={formData.status || "active"}
-              onValueChange={(val) => handleChange("status", val || "active")}
+              value={formData.isActive ? "active" : "suspended"}
+              onValueChange={(val) => setFormData((p) => ({ ...p, isActive: val === "active" }))}
             >
               <SelectTrigger className="rounded-xl border-[#DED9CF] bg-[#F7F6F1] text-xs">
                 <SelectValue placeholder="Status" />
@@ -149,10 +152,10 @@ export function EditEmployeeSheet({ employee, open, onOpenChange, onSave }: Edit
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!isFormValid}
+            disabled={saving}
             className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl text-xs font-bold"
           >
-            Save Changes
+            {saving ? "Saving…" : "Save Changes"}
           </Button>
         </SheetFooter>
       </SheetContent>
