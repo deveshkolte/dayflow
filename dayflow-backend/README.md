@@ -34,6 +34,29 @@ copy .env.example .env
 npm run start:dev
 ```
 
+Nest CLI
+------
+
+This project is compatible with the Nest CLI. You can run CLI commands without installing globally using `npx`:
+
+```bash
+npx @nestjs/cli <command>
+# example: npx @nestjs/cli info
+```
+
+Common commands:
+
+```bash
+# dev server (uses local @nestjs/cli)
+npm run start:dev
+
+# build
+npm run build
+
+# prisma (if added)
+npm run prisma:generate
+npm run prisma:migrate
+```
 Health endpoints:
 
 - Root: http://localhost:4000
@@ -47,6 +70,25 @@ PORT=4000
 DATABASE_URL=postgresql://user:password@localhost:5432/dayflow
 JWT_SECRET=your_jwt_secret
 CLIENT_URL=http://localhost:5173
+```
+
+Prisma + Supabase
+-----------------
+
+We use Prisma as the ORM and Supabase (Postgres) for hosting the database. Set `DATABASE_URL` to your Supabase connection string (found in the Supabase project settings → Database → Connection string).
+
+After setting `DATABASE_URL`, run:
+
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+```
+
+To run Prisma Studio (inspect data visually):
+
+```bash
+npx prisma studio
 ```
 
 ## API Design Notes

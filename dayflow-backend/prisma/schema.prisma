@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  HR
+  ADMIN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+}
+
+enum LeaveType {
+  PAID
+  SICK
+  UNPAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                String    @id @default(uuid())
+  employeeId        String    @unique
+  email             String    @unique
+  passwordHash      String
+  role              Role      @default(EMPLOYEE)
+  firstName         String?
+  lastName          String?
+  phone             String?
+  address           String?
+  jobTitle          String?
+  department        String?
+  profilePictureUrl String?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  attendances       Attendance[]
+  leaveRequests     LeaveRequest[] @relation("employeeLeaves")
+  approvals         LeaveRequest[] @relation("approverLeaves")
+  salaryStructures  SalaryStructure[]
+  payrolls          PayrollRecord[]
+  documents         Document[]
+  auditLogs         AuditLog[] @relation("actorLogs")
+}
+
+model Attendance {
+  id         String          @id @default(uuid())
+  employee   User            @relation(fields: [employeeId], references: [id])
+  employeeId String
+  date       DateTime
+  checkIn    DateTime?
+  checkOut   DateTime?
+  status     AttendanceStatus
+  notes      String?
+  createdAt  DateTime        @default(now())
+
+  @@index([employeeId, date])
+}
+
+model LeaveRequest {
+  id              String      @id @default(uuid())
+  employee        User        @relation("employeeLeaves", fields: [employeeId], references: [id])
+  employeeId      String
+  startDate       DateTime
+  endDate         DateTime
+  type            LeaveType
+  status          LeaveStatus @default(PENDING)
+  reason          String?
+  approver        User?       @relation("approverLeaves", fields: [approverId], references: [id])
+  approverId      String?
+  approverComment String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([employeeId, status])
+}
+
+model SalaryStructure {
+  id            String   @id @default(uuid())
+  employee      User?    @relation(fields: [employeeId], references: [id])
+  employeeId    String?
+  baseSalary    Decimal
+  allowances    Json?
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model PayrollRecord {
+  id          String   @id @default(uuid())
+  employee    User     @relation(fields: [employeeId], references: [id])
+  employeeId  String
+  periodStart DateTime
+  periodEnd   DateTime
+  gross       Decimal
+  net         Decimal
+  deductions  Json?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId, periodStart])
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  employee   User     @relation(fields: [employeeId], references: [id])
+  employeeId String
+  type       String
+  url        String
+  uploadedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actor     User?    @relation("actorLogs", fields: [actorId], references: [id])
+  actorId   String?
+  action    String
+  entity    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
