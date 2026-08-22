@@ -53,9 +53,10 @@ npm run start:dev
 # build
 npm run build
 
-# prisma (if added)
+# database schema
 npm run prisma:generate
-npm run prisma:migrate
+npm run prisma:migrate:status
+npm run prisma:migrate:deploy
 ```
 Health endpoints:
 
@@ -77,13 +78,15 @@ Prisma + Supabase
 
 We use Prisma as the ORM and Supabase (Postgres) for hosting the database. Set `DATABASE_URL` to your Supabase connection string (found in the Supabase project settings → Database → Connection string).
 
-After setting `DATABASE_URL`, run:
+After setting `DATABASE_URL`, run the checked-in migration:
 
 ```bash
 npm install
-npx prisma generate
-npx prisma migrate dev --name init
+npm run prisma:generate
+npm run prisma:migrate:deploy
 ```
+
+For local schema development, use `npm run prisma:migrate` after reviewing the generated migration. Do not use `prisma db push` for the shared schema because it bypasses migration history.
 
 To run Prisma Studio (inspect data visually):
 
