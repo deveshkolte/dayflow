@@ -1,1628 +1,909 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
-import './App.css'
+import { useState, useEffect, useCallback } from "react";
+import "./App.css";
 import {
-  ApiError,
-  api,
-  initialAttendance,
-  initialEmployeeProfile,
-  initialLeaves,
-  initialNotifications,
-  initialPayrolls
-} from './api'
-import type {
+  login,
+  register,
+  getMyProfile,
+  updateMyProfile,
+  getMyAttendance,
+  checkIn,
+  checkOut,
+  getMyLeaves,
+  applyLeave,
+  getMyPayroll,
+  saveSession,
+  clearSession,
+  getToken,
+  getSavedUser,
+  AuthUser,
+  EmployeeProfile,
   AttendanceRecord,
-  Leave,
-  NotificationItem,
+  LeaveRequest,
   PayrollRecord,
-  User
-} from './api'
+} from "./api";
 
-type Route = '/login' | '/signup' | '/dashboard' | '/profile' | '/attendance' | '/leave' | '/payroll'
+// ─── Notification helper ──────────────────────────────────────────────────────
+type ToastType = "success" | "error" | "warning" | "info";
+interface Toast { id: number; type: ToastType; message: string }
+let _toastId = 0;
+let _addToast: (t: ToastType, msg: string) => void = () => {};
+function notify(t: ToastType, msg: string) { _addToast(t, msg); }
 
-function go(route: Route) {
-  window.history.pushState({}, '', route)
-  window.dispatchEvent(new PopStateEvent('popstate'))
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
-
-type ToastKind = 'success' | 'error' | 'warning' | 'info'
-type Toast = { title: string; description: string; kind: ToastKind }
-const ToastContext = createContext<(toast: Toast) => void>(() => undefined)
-const useToast = () => useContext(ToastContext)
-
-function ToastViewport({ toast, onDismiss }: { toast: Toast | null; onDismiss: () => void }) {
-  if (!toast) return null
-  return (
-    <div className={`toast toast-${toast.kind}`} role="alert">
-      <div>
-        <strong>{toast.title}</strong>
-        <p>{toast.description}</p>
-      </div>
-      <button type="button" aria-label="Dismiss notification" onClick={onDismiss}>×</button>
-    </div>
-  )
+function fmtTime(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
-
-function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toast, setToast] = useState<Toast | null>(null)
-  useEffect(() => {
-    if (!toast) return undefined
-    const timer = window.setTimeout(() => setToast(null), 5000)
-    return () => window.clearTimeout(timer)
-  }, [toast])
-  return (
-    <ToastContext.Provider value={setToast}>
-      <ToastViewport toast={toast} onDismiss={() => setToast(null)} />
-      {children}
-    </ToastContext.Provider>
-  )
+function durationBetween(start: string | null, end: string | null) {
+  if (!start || !end) return "—";
+  const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  if (mins < 0) return "—";
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
-
-/* =========================================================================
-   AUTH PAGES
-   ========================================================================= */
-function AuthCard({
-  mode,
-  onAuthenticated
-}: {
-  mode: 'login' | 'signup'
-  onAuthenticated: (token: string, user: User) => void
-}) {
-  const [employeeId, setEmployeeId] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const isSignup = mode === 'signup'
-  const showToast = useToast()
-
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      const result = isSignup
-        ? await api.signup({ employeeId, email, password })
-        : await api.login({ email, password })
-
-      showToast({
-        kind: 'success',
-        title: isSignup ? 'Account Created' : 'Welcome Back',
-        description: isSignup
-          ? 'Your Dayflow employee account is ready.'
-          : 'Signed in successfully to Dayflow Employee Portal.'
-      })
-      onAuthenticated(result.token, result.user)
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Authentication failed.'
-      setError(msg)
-      showToast({ kind: 'error', title: 'Sign-in Failed', description: msg })
-    } finally {
-      setLoading(false)
-    }
+function daysBetween(start: string, end: string) {
+  const s = new Date(start + "T00:00:00Z");
+  const e = new Date(end + "T00:00:00Z");
+  return Math.max(1, Math.round((e.getTime() - s.getTime()) / 86400000) + 1);
+}
+function statusColor(status: string) {
+  switch (status) {
+    case "PRESENT": return "pill-present";
+    case "ABSENT": return "pill-absent";
+    case "HALF_DAY": return "pill-halfday";
+    case "LEAVE": return "pill-leave";
+    case "PENDING": return "pill-pending";
+    case "APPROVED": return "pill-approved";
+    case "REJECTED": return "pill-rejected";
+    default: return "";
   }
+}
+function statusLabel(status: string) {
+  return status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, "-");
+}
+
+// ─── Toast Component ──────────────────────────────────────────────────────────
+function ToastContainer() {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  _addToast = (type: ToastType, message: string) => {
+    const id = ++_toastId;
+    setToasts((p) => [...p, { id, type, message }]);
+    setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 3500);
+  };
+  if (!toasts.length) return null;
+  return (
+    <div className="toast-container">
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast toast-${t.type}`}>{t.message}</div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Auth Screen ──────────────────────────────────────────────────────────────
+function AuthScreen({ onAuth }: { onAuth: (token: string, user: AuthUser) => void }) {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [empId, setEmpId] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      let res;
+      if (mode === "signin") {
+        res = await login(email, password);
+      } else {
+        res = await register(empId, email, password, firstName, lastName);
+      }
+      const token = res.data?.accessToken || res.accessToken || res.token;
+      const user = res.data?.user || res.user;
+      if (!token || !user) throw new Error("Invalid response from server");
+      saveSession(token, user);
+      onAuth(token, user);
+    } catch (err: unknown) {
+      notify("error", (err as Error).message || "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <main className="auth-page">
-      <div className="auth-frame">
-        {!isSignup && (
-          <section className="auth-brand-panel" aria-label="Dayflow introduction">
-            <div>
-              <div className="brand-mark brand-mark-light">DAYFLOW</div>
-              <p className="brand-tagline">
-                Every workday,<br />
-                <em>perfectly aligned.</em>
-              </p>
-            </div>
-            <div className="brand-panel-footer">
-              <span className="brand-rule" /> <span>Employee Workspace</span>
-            </div>
-          </section>
-        )}
-
-        <section className="auth-card">
-          <div className="mobile-brand">
-            <div className="brand-mark">DAYFLOW</div>
-            <p className="eyebrow">Every workday, perfectly aligned.</p>
+    <div className="auth-root">
+      <div className="auth-brand-panel">
+        <div className="auth-brand-logo">DAYFLOW</div>
+        <p className="auth-brand-tagline">Every workday, perfectly aligned.</p>
+        <div className="auth-brand-features">
+          <div className="auth-feature-item">✦ Smart attendance tracking</div>
+          <div className="auth-feature-item">✦ Effortless leave management</div>
+          <div className="auth-feature-item">✦ Transparent payroll visibility</div>
+        </div>
+      </div>
+      <div className="auth-form-panel">
+        <div className="auth-form-card">
+          <div className="auth-header-title">
+            {mode === "signin" ? "Welcome back" : "Create your account"}
           </div>
-
-          <div className="auth-heading">
-            <p className="eyebrow">{isSignup ? 'New Registration' : 'Secure Sign-In'}</p>
-            <h1>{isSignup ? 'Create Account' : 'Welcome Back'}</h1>
-            <p className="auth-copy">
-              {isSignup
-                ? 'Register your employee profile to access self-service.'
-                : 'Sign in to access your attendance, leaves, and payroll.'}
-            </p>
-          </div>
-
-          <form onSubmit={submit} className="auth-form">
-            {isSignup && (
-              <label>
-                Employee ID
-                <input
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value)}
-                  placeholder="e.g. DF-1042"
-                  required
-                />
-              </label>
+          <p className="auth-header-sub">
+            {mode === "signin"
+              ? "Sign in to access your Dayflow workspace."
+              : "Register with your employee ID to get started."}
+          </p>
+          <form onSubmit={handleSubmit} className="auth-form">
+            {mode === "signup" && (
+              <>
+                <div className="form-group">
+                  <label>Employee ID *</label>
+                  <input value={empId} onChange={(e) => setEmpId(e.target.value)} required placeholder="EMP001" />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>First Name</label>
+                    <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Aarav" />
+                  </div>
+                  <div className="form-group">
+                    <label>Last Name</label>
+                    <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Sharma" />
+                  </div>
+                </div>
+              </>
             )}
-            <label>
-              Work Email
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="aarav.sharma@dayflow.internal"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <div className="password-field">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  minLength={6}
-                  required
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? '👁' : '🔒'}
-                </button>
-              </div>
-            </label>
-
-            {!isSignup && (
-              <span className="forgot-link" style={{ cursor: 'pointer' }}>
-                Forgot Password?
-              </span>
-            )}
-            {error && <p className="form-error">{error}</p>}
-
-            <button className="primary-button auth-submit" disabled={loading}>
-              <span>{loading ? 'Authenticating…' : isSignup ? 'Create Account' : 'Sign In'}</span>
-              <span aria-hidden="true">→</span>
+            <div className="form-group">
+              <label>Work Email *</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@company.com" />
+            </div>
+            <div className="form-group">
+              <label>Password *</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={8} />
+            </div>
+            <button type="submit" className="btn-primary w-full" disabled={loading}>
+              {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
             </button>
           </form>
-
           <p className="auth-switch">
-            {isSignup ? 'Already have an employee account?' : "Don't have an account yet?"}{' '}
-            <button type="button" onClick={() => go(isSignup ? '/login' : '/signup')}>
-              {isSignup ? 'Sign In' : 'Sign Up'}
+            {mode === "signin" ? "No account? " : "Have an account? "}
+            <button type="button" className="link-btn" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
+              {mode === "signin" ? "Sign up" : "Sign in"}
             </button>
           </p>
-        </section>
+        </div>
       </div>
-    </main>
-  )
+    </div>
+  );
 }
 
-/* =========================================================================
-   SHELL & NAVIGATION
-   ========================================================================= */
-interface ShellProps {
-  user: User
-  activeRoute: Route
-  children: React.ReactNode
-  notifications: NotificationItem[]
-  onMarkNotificationsRead: () => void
-}
+// ─── Shell ────────────────────────────────────────────────────────────────────
+const TABS = [
+  { id: "dashboard", label: "Dashboard", icon: "⊞" },
+  { id: "attendance", label: "Attendance", icon: "✓" },
+  { id: "leave", label: "Leave", icon: "◷" },
+  { id: "payroll", label: "Payroll", icon: "₹" },
+  { id: "profile", label: "Profile", icon: "◉" },
+];
 
-function Shell({
-  user,
-  activeRoute,
-  children,
-  notifications,
-  onMarkNotificationsRead
-}: ShellProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [notifOpen, setNotifOpen] = useState(false)
+function Shell({ user, profile, onSignOut }: { user: AuthUser; profile: EmployeeProfile | null; onSignOut: () => void }) {
+  const [tab, setTab] = useState("dashboard");
+  const [showNotif, setShowNotif] = useState(false);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
 
-  const navItems: { label: string; route: Route; icon: string }[] = [
-    { label: 'Dashboard', route: '/dashboard', icon: '⌂' },
-    { label: 'Profile', route: '/profile', icon: '👤' },
-    { label: 'Attendance', route: '/attendance', icon: '⏱' },
-    { label: 'Leave', route: '/leave', icon: '📅' },
-    { label: 'Payroll', route: '/payroll', icon: '💳' }
-  ]
+  useEffect(() => {
+    getMyLeaves().then((r) => setLeaves(r.data || [])).catch(() => {});
+  }, []);
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const pendingCount = leaves.filter((l) => l.status === "PENDING").length;
+  const displayName = profile?.fullName || user.email.split("@")[0];
 
   return (
-    <div className="app-container">
-      {/* Sidebar */}
-      <aside className={`app-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-brand">
-          <div className="brand-mark-box">D</div>
-          <span className="sidebar-brand-text">DAYFLOW</span>
-        </div>
-
-        <nav className="sidebar-nav">
-          {navItems.map((item) => {
-            const isActive = activeRoute === item.route
-            return (
-              <button
-                key={item.label}
-                type="button"
-                className={`nav-link-btn ${isActive ? 'active' : ''}`}
-                onClick={() => {
-                  setMobileMenuOpen(false)
-                  go(item.route)
-                }}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="user-mini-card">
-            <img
-              src={
-                user.profilePictureUrl ||
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-              }
-              alt={user.fullName || 'User'}
-              className="user-avatar-mini"
-            />
-            <div>
-              <p className="user-meta-name">{user.fullName || user.employeeId}</p>
-              <p className="user-meta-sub">{user.employeeId}</p>
-            </div>
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <span className="sidebar-logo-mark">D</span>
+          <div>
+            <div className="sidebar-brand">DAYFLOW</div>
+            <div className="sidebar-tagline">Employee Portal</div>
           </div>
-          <button
-            type="button"
-            className="logout-btn"
-            onClick={() => {
-              localStorage.removeItem('dayflow_token')
-              go('/login')
-            }}
-          >
-            <span>🚪</span>
-            <span>Sign Out</span>
-          </button>
+        </div>
+        <nav className="sidebar-nav">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`sidebar-nav-item ${tab === t.id ? "active" : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              <span className="nav-icon">{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">
+            {displayName.substring(0, 2).toUpperCase()}
+          </div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">{displayName}</div>
+            <div className="sidebar-user-id">{user.employeeId}</div>
+          </div>
+          <button className="sidebar-signout" onClick={onSignOut} title="Sign out">↩</button>
         </div>
       </aside>
-
-      {/* Main Container */}
-      <div className="app-main">
-        {/* Top Header */}
-        <header className="top-header">
-          <div className="header-left">
-            <button
-              type="button"
-              className="mobile-menu-btn"
-              onClick={() => setMobileMenuOpen((o) => !o)}
-            >
-              ☰
-            </button>
-            <div className="header-title-wrap">
-              <h1>
-                {activeRoute === '/dashboard' && 'Employee Dashboard'}
-                {activeRoute === '/profile' && 'My Profile'}
-                {activeRoute === '/attendance' && 'Attendance Tracker'}
-                {activeRoute === '/leave' && 'Leave & Time-Off'}
-                {activeRoute === '/payroll' && 'Payroll & Payslips'}
-              </h1>
-            </div>
-          </div>
-
-          <div className="header-right">
+      <div className="main-content">
+        <header className="topbar">
+          <div className="topbar-title">{TABS.find((t) => t.id === tab)?.label}</div>
+          <div className="topbar-actions">
             <div className="date-pill">
               <span className="date-dot" />
-              <span>
-                {new Date().toLocaleDateString('en-IN', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric'
-                })}
-              </span>
+              {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
             </div>
-
-            {/* Notification Center */}
-            <div className="notif-wrapper">
-              <button
-                type="button"
-                className="notif-bell-btn"
-                onClick={() => setNotifOpen((o) => !o)}
-                aria-label="Notifications"
-              >
+            <div className="notif-btn-wrap">
+              <button className="notif-btn" onClick={() => setShowNotif((v) => !v)}>
                 🔔
-                {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+                {pendingCount > 0 && <span className="notif-badge">{pendingCount}</span>}
               </button>
-
-              {notifOpen && (
-                <div className="notif-popover">
+              {showNotif && (
+                <div className="notif-dropdown">
                   <div className="notif-header">
-                    <h4>Notifications</h4>
-                    {unreadCount > 0 && (
-                      <button
-                        type="button"
-                        className="mark-read-btn"
-                        onClick={onMarkNotificationsRead}
-                      >
-                        Mark all as read
-                      </button>
-                    )}
+                    <strong>Notifications</strong>
+                    <button className="link-btn" onClick={() => setShowNotif(false)}>✕</button>
                   </div>
-                  <div className="notif-list">
-                    {notifications.length === 0 ? (
-                      <p style={{ padding: '20px', color: '#6d6a61', fontSize: '0.85rem' }}>
-                        No notifications yet.
-                      </p>
-                    ) : (
-                      notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          className={`notif-item ${!n.read ? 'unread' : ''}`}
-                        >
-                          <div>
-                            <strong>{n.title}</strong>
-                            <p>{n.message}</p>
-                            <small>{n.time}</small>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                  {pendingCount === 0 ? (
+                    <div className="notif-empty">No new notifications</div>
+                  ) : (
+                    leaves.filter((l) => l.status === "PENDING").map((l) => (
+                      <div key={l.id} className="notif-item">
+                        <div className="notif-item-title">Leave request pending</div>
+                        <div className="notif-item-sub">{fmtDate(l.startDate)} → {fmtDate(l.endDate)}</div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
           </div>
         </header>
-
-        {/* Page Content */}
-        <main className="view-content">{children}</main>
+        <div className="page-content">
+          {tab === "dashboard" && <DashboardTab user={user} profile={profile} onTabChange={setTab} />}
+          {tab === "attendance" && <AttendanceTab user={user} />}
+          {tab === "leave" && <LeaveTab user={user} />}
+          {tab === "payroll" && <PayrollTab />}
+          {tab === "profile" && <ProfileTab user={user} profile={profile} />}
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
-/* =========================================================================
-   DASHBOARD SCREEN
-   ========================================================================= */
-function DashboardScreen({
-  user,
-  attendance,
-  leaves,
-  payrolls,
-  onCheckIn,
-  onCheckOut,
-  onOpenLeaveModal
-}: {
-  user: User
-  attendance: AttendanceRecord[]
-  leaves: Leave[]
-  payrolls: PayrollRecord[]
-  onCheckIn: () => void
-  onCheckOut: () => void
-  onOpenLeaveModal: () => void
-}) {
-  const [currentTime, setCurrentTime] = useState(
-    new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  )
+// ─── Dashboard Tab ────────────────────────────────────────────────────────────
+function DashboardTab({ user, profile, onTabChange }: { user: AuthUser; profile: EmployeeProfile | null; onTabChange: (t: string) => void }) {
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [clock, setClock] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(
-        new Date().toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        })
-      )
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
+    const today = new Date().toISOString().slice(0, 10);
+    getMyAttendance(today, today).then((r) => {
+      const rec = r.data?.[0] || null;
+      setTodayRecord(rec);
+    }).catch(() => {});
+    getMyLeaves().then((r) => setLeaves((r.data || []).slice(0, 5))).catch(() => {});
+    const iv = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(iv);
+  }, []);
 
-  const todayRecord = attendance[0]
-  const isCheckedIn = Boolean(todayRecord?.checkIn)
-  const isCheckedOut = Boolean(todayRecord?.checkOut)
-  const pendingLeaves = leaves.filter((l) => l.status === 'pending').length
-  const currentNetPay = payrolls[0]?.netSalary ? `₹${payrolls[0].netSalary.toLocaleString('en-IN')}` : '₹67,800'
+  const handleCheckIn = async () => {
+    setCheckingIn(true);
+    try {
+      const r = await checkIn();
+      setTodayRecord(r.data);
+      notify("success", "Checked in successfully!");
+    } catch (err: unknown) { notify("error", (err as Error).message); }
+    finally { setCheckingIn(false); }
+  };
+
+  const handleCheckOut = async () => {
+    setCheckingOut(true);
+    try {
+      const r = await checkOut();
+      setTodayRecord(r.data);
+      notify("success", "Checked out successfully!");
+    } catch (err: unknown) { notify("error", (err as Error).message); }
+    finally { setCheckingOut(false); }
+  };
+
+  const hour = clock.getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const displayName = profile?.fullName || user.email.split("@")[0];
+  const netSalary = profile?.salaryStructure
+    ? profile.salaryStructure.baseSalary + Object.values(profile.salaryStructure.allowances).reduce((a, b) => a + b, 0)
+    : null;
 
   return (
-    <>
-      {/* Welcome Banner */}
-      <section className="welcome-banner">
+    <div className="page-inner">
+      <div className="welcome-banner">
         <div>
-          <p className="welcome-eyebrow">Good morning</p>
-          <h2>{user.fullName || 'Aarav Sharma'}</h2>
-          <p>Here is your daily workspace overview and attendance status.</p>
+          <div className="welcome-greeting">{greeting}, {displayName.split(" ")[0]} 👋</div>
+          <div className="welcome-sub">Here's your workspace summary for today.</div>
         </div>
-        <button type="button" className="banner-action-btn" onClick={onOpenLeaveModal}>
-          <span>+</span>
-          <span className="font-italic-accent">Request Time-Off</span>
-        </button>
-      </section>
-
-      {/* KPI Cards */}
-      <section className="kpi-grid">
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Today's Status</span>
-            <div className="kpi-icon-box">⏱</div>
-          </div>
-          <div className="kpi-value">{isCheckedIn ? (isCheckedOut ? 'Checked Out' : 'Present') : 'Not Checked In'}</div>
-          <div className="kpi-footer">
-            <span className="pulse-dot" />
-            <span>{isCheckedIn ? `In at ${todayRecord.checkIn}` : 'Punch in to record attendance'}</span>
-          </div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Leave Balance</span>
-            <div className="kpi-icon-box">📅</div>
-          </div>
-          <div className="kpi-value">14 Days</div>
-          <div className="kpi-footer">
-            <span style={{ color: '#9f7e4a', fontWeight: 700 }}>{pendingLeaves} request pending approval</span>
-          </div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Current Net Pay</span>
-            <div className="kpi-icon-box">💳</div>
-          </div>
-          <div className="kpi-value">{currentNetPay}</div>
-          <div className="kpi-footer">
-            <span>July 2026 cycle credited</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Punch In/Out Live Card */}
-      <section className="punch-card">
-        <div className="punch-header">
-          <div>
-            <p className="welcome-eyebrow">Digital Punch</p>
-            <h3 style={{ fontFamily: 'var(--dayflow-display-font)', fontSize: '1.2rem', color: 'var(--dayflow-ink)' }}>
-              Workplace Check-In
-            </h3>
-          </div>
-          <div className="punch-clock-display">
-            <div className="live-clock-badge">{currentTime}</div>
-            <div className="punch-status-indicator">
-              <span className="pulse-dot" />
-              <span>{isCheckedIn ? (isCheckedOut ? 'Day Complete' : 'Active Shift') : 'Ready to Punch'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="punch-actions-grid">
-          <button
-            type="button"
-            className="punch-in-btn"
-            disabled={isCheckedIn}
-            onClick={onCheckIn}
-          >
-            <span>🟢</span>
-            <span className="font-italic-accent">{isCheckedIn ? 'Checked In' : 'Check In Now'}</span>
-          </button>
-          <button
-            type="button"
-            className="punch-out-btn"
-            disabled={!isCheckedIn || isCheckedOut}
-            onClick={onCheckOut}
-          >
-            <span>🔴</span>
-            <span className="font-italic-accent">{isCheckedOut ? 'Checked Out' : 'Check Out'}</span>
-          </button>
-        </div>
-      </section>
-
-      {/* Quick Actions & Recent Leaves */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-        {/* Quick Actions */}
-        <section className="content-card">
-          <div className="card-header-row">
-            <h3>Quick Actions</h3>
-          </div>
-          <div style={{ display: 'grid', gap: '12px' }}>
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ width: '100%', justifyContent: 'space-between' }}
-              onClick={onOpenLeaveModal}
-            >
-              <span>Apply for Leave</span>
-              <span>→</span>
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}
-              onClick={() => go('/payroll')}
-            >
-              <span>View Payslip Breakdown</span>
-              <span>→</span>
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}
-              onClick={() => go('/profile')}
-            >
-              <span>Update Profile & Address</span>
-              <span>→</span>
-            </button>
-          </div>
-        </section>
-
-        {/* Recent Leave Requests */}
-        <section className="content-card">
-          <div className="card-header-row">
-            <h3>Recent Leave Requests</h3>
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ padding: '6px 12px', fontSize: '0.78rem' }}
-              onClick={() => go('/leave')}
-            >
-              View All
-            </button>
-          </div>
-          <div className="dayflow-table-wrapper">
-            <table className="dayflow-table">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Dates</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaves.slice(0, 3).map((l) => (
-                  <tr key={l.id}>
-                    <td>
-                      <strong>{l.leaveType}</strong>
-                    </td>
-                    <td>
-                      <small style={{ color: 'var(--dayflow-secondary)' }}>
-                        {l.startDate} → {l.endDate}
-                      </small>
-                    </td>
-                    <td>
-                      <span className={`status-pill status-${l.status}`}>{l.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <div className="welcome-date">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</div>
       </div>
-    </>
-  )
-}
 
-/* =========================================================================
-   PROFILE SCREEN
-   ========================================================================= */
-function ProfileScreen({
-  user,
-  onUpdateProfile
-}: {
-  user: User
-  onUpdateProfile: (updated: Partial<User>) => void
-}) {
-  const [editModalOpen, setEditModalOpen] = useState(false)
-  const [formData, setFormData] = useState({
-    phone: user.phone || '+91 98765 43210',
-    address: user.address || '42 Lotus Enclave, 100ft Road, Indiranagar, Bengaluru, 560038',
-    profilePictureUrl: user.profilePictureUrl || ''
-  })
-  const showToast = useToast()
-
-  function handleSaveProfile(e: FormEvent) {
-    e.preventDefault()
-    onUpdateProfile(formData)
-    setEditModalOpen(false)
-    showToast({
-      kind: 'success',
-      title: 'Profile Updated',
-      description: 'Your contact details and address have been successfully updated.'
-    })
-  }
-
-  return (
-    <>
-      <section className="content-card">
-        <div className="profile-card-top">
-          <div className="profile-avatar-large-wrap">
-            <img
-              src={
-                user.profilePictureUrl ||
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
-              }
-              alt={user.fullName || 'User'}
-              className="profile-avatar-large"
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <span className="welcome-eyebrow">{user.department || 'Engineering'} Department</span>
-            <h2 style={{ fontFamily: 'var(--dayflow-display-font)', fontSize: '1.7rem', color: 'var(--dayflow-ink)' }}>
-              {user.fullName || 'Aarav Sharma'}
-            </h2>
-            <p style={{ color: 'var(--dayflow-secondary)', marginTop: '4px', fontSize: '0.9rem' }}>
-              {user.designation || 'Senior Frontend Engineer'} • ID: {user.employeeId}
-            </p>
-            <div style={{ marginTop: '12px', display: 'flex', gap: '10px' }}>
-              <span className="status-pill status-approved">Active Employee</span>
-              <span className="status-pill status-halfday">Full Time</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => {
-              setFormData({
-                phone: user.phone || '',
-                address: user.address || '',
-                profilePictureUrl: user.profilePictureUrl || ''
-              })
-              setEditModalOpen(true)
-            }}
-          >
-            <span>✎</span>
-            <span className="font-italic-accent">Edit Profile</span>
-          </button>
-        </div>
-
-        {/* Personal Details */}
-        <div style={{ marginTop: '28px' }}>
-          <h3 style={{ fontFamily: 'var(--dayflow-display-font)', fontSize: '1.15rem', marginBottom: '14px', color: 'var(--dayflow-ink)' }}>
-            Personal Details
-          </h3>
-          <div className="profile-details-grid">
-            <div className="info-item">
-              <span className="label">Full Legal Name</span>
-              <span className="val">{user.fullName || 'Aarav Sharma'}</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Work Email</span>
-              <span className="val">{user.email}</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Primary Phone</span>
-              <span className="val">{user.phone || '+91 98765 43210'}</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Residential Address</span>
-              <span className="val">{user.address || 'Indiranagar, Bengaluru, 560038'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Job Details */}
-        <div style={{ marginTop: '32px' }}>
-          <h3 style={{ fontFamily: 'var(--dayflow-display-font)', fontSize: '1.15rem', marginBottom: '14px', color: 'var(--dayflow-ink)' }}>
-            Job & Organization Details
-          </h3>
-          <div className="profile-details-grid">
-            <div className="info-item">
-              <span className="label">Employee ID</span>
-              <span className="val">{user.employeeId}</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Department</span>
-              <span className="val">{user.department || 'Engineering'}</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Designation</span>
-              <span className="val">{user.designation || 'Senior Frontend Engineer'}</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Joining Date</span>
-              <span className="val">{user.joiningDate || '15 Mar 2023'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Salary Structure (Read Only) */}
-        <div style={{ marginTop: '32px' }}>
-          <div className="card-header-row" style={{ marginBottom: '12px' }}>
-            <h3 style={{ fontFamily: 'var(--dayflow-display-font)', fontSize: '1.15rem', color: 'var(--dayflow-ink)' }}>
-              Salary Structure (Read-Only)
-            </h3>
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ padding: '6px 12px', fontSize: '0.78rem' }}
-              onClick={() => go('/payroll')}
-            >
-              View Payroll
-            </button>
-          </div>
-          <div className="profile-details-grid">
-            <div className="info-item">
-              <span className="label">Basic Salary</span>
-              <span className="val">₹45,000 / mo</span>
-            </div>
-            <div className="info-item">
-              <span className="label">House Rent Allowance (HRA)</span>
-              <span className="val">₹18,000 / mo</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Special Allowances</span>
-              <span className="val">₹12,000 / mo</span>
-            </div>
-            <div className="info-item">
-              <span className="label">Standard Deductions (PF & Tax)</span>
-              <span className="val">₹7,200 / mo</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Edit Profile Modal */}
-      {editModalOpen && (
-        <div className="modal-overlay" onClick={() => setEditModalOpen(false)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Edit Profile Details</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setEditModalOpen(false)}>
-                ×
-              </button>
-            </div>
-            <form onSubmit={handleSaveProfile}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Phone Number</label>
-                  <input
-                    className="form-input"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Residential Address</label>
-                  <textarea
-                    className="form-textarea"
-                    rows={3}
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Profile Picture URL</label>
-                  <input
-                    className="form-input"
-                    value={formData.profilePictureUrl}
-                    onChange={(e) => setFormData({ ...formData, profilePictureUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setEditModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  <span className="font-italic-accent">Save Changes</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-/* =========================================================================
-   ATTENDANCE SCREEN
-   ========================================================================= */
-function AttendanceScreen({
-  attendance,
-  onCheckIn,
-  onCheckOut
-}: {
-  attendance: AttendanceRecord[]
-  onCheckIn: () => void
-  onCheckOut: () => void
-}) {
-  const [viewTab, setViewTab] = useState<'daily' | 'weekly'>('daily')
-  const [filterMonth] = useState('August 2026')
-
-  const todayRecord = attendance[0]
-  const isCheckedIn = Boolean(todayRecord?.checkIn)
-  const isCheckedOut = Boolean(todayRecord?.checkOut)
-
-  const presentCount = attendance.filter((a) => a.status === 'Present').length
-  const halfDayCount = attendance.filter((a) => a.status === 'Half-day').length
-  const leaveCount = attendance.filter((a) => a.status === 'Leave').length
-
-  return (
-    <>
-      {/* Attendance Punch Hero */}
-      <section className="punch-card">
-        <div className="punch-header">
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-icon">✓</div>
           <div>
-            <p className="welcome-eyebrow">Attendance Recording</p>
-            <h3 style={{ fontFamily: 'var(--dayflow-display-font)', fontSize: '1.4rem', color: 'var(--dayflow-ink)' }}>
-              Daily Punch Card
-            </h3>
-          </div>
-          <div className="punch-status-indicator">
-            <span className="pulse-dot" />
-            <span style={{ fontSize: '1rem', fontWeight: 800 }}>
-              {isCheckedIn ? (isCheckedOut ? 'Completed' : 'Shift Active') : 'Not Checked In'}
-            </span>
+            <div className="kpi-label">Today's Status</div>
+            <div className="kpi-value">{todayRecord ? statusLabel(todayRecord.status) : "Not marked"}</div>
           </div>
         </div>
-
-        <div className="punch-actions-grid">
-          <button
-            type="button"
-            className="punch-in-btn"
-            disabled={isCheckedIn}
-            onClick={onCheckIn}
-          >
-            <span>🟢</span>
-            <span className="font-italic-accent">
-              {isCheckedIn ? `Checked In at ${todayRecord.checkIn}` : 'Punch Check-In'}
-            </span>
-          </button>
-          <button
-            type="button"
-            className="punch-out-btn"
-            disabled={!isCheckedIn || isCheckedOut}
-            onClick={onCheckOut}
-          >
-            <span>🔴</span>
-            <span className="font-italic-accent">
-              {isCheckedOut ? `Checked Out at ${todayRecord.checkOut}` : 'Punch Check-Out'}
-            </span>
-          </button>
-        </div>
-      </section>
-
-      {/* Monthly Stats */}
-      <section className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Days Present</span>
-            <div className="kpi-icon-box">✓</div>
-          </div>
-          <div className="kpi-value">{presentCount} Days</div>
-          <div className="kpi-footer">
-            <span>On track for full attendance</span>
-          </div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Half-Days</span>
-            <div className="kpi-icon-box">◐</div>
-          </div>
-          <div className="kpi-value">{halfDayCount}</div>
-          <div className="kpi-footer">
-            <span>Logged with remarks</span>
-          </div>
-        </div>
-
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Approved Leaves</span>
-            <div className="kpi-icon-box">📅</div>
-          </div>
-          <div className="kpi-value">{leaveCount}</div>
-          <div className="kpi-footer">
-            <span>Approved by HR</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Attendance History Table */}
-      <section className="content-card">
-        <div className="card-header-row">
+          <div className="kpi-icon">◷</div>
           <div>
-            <h3>Attendance Log — {filterMonth}</h3>
-            <p style={{ color: 'var(--dayflow-secondary)', fontSize: '0.85rem' }}>
-              Real-time daily punch logs and working hours breakdown.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              className={viewTab === 'daily' ? 'btn-primary' : 'btn-secondary'}
-              style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-              onClick={() => setViewTab('daily')}
-            >
-              Daily Log
-            </button>
-            <button
-              type="button"
-              className={viewTab === 'weekly' ? 'btn-primary' : 'btn-secondary'}
-              style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-              onClick={() => setViewTab('weekly')}
-            >
-              Weekly Summary
-            </button>
+            <div className="kpi-label">Leave Balance</div>
+            <div className="kpi-value">View in Leave tab</div>
           </div>
         </div>
+        <div className="kpi-card">
+          <div className="kpi-icon">₹</div>
+          <div>
+            <div className="kpi-label">Net Monthly Pay</div>
+            <div className="kpi-value">{netSalary != null ? `₹${netSalary.toLocaleString("en-IN")}` : "—"}</div>
+          </div>
+        </div>
+      </div>
 
-        <div className="dayflow-table-wrapper">
-          <table className="dayflow-table">
+      {/* Digital Punch Widget */}
+      <div className="punch-card">
+        <div className="punch-clock">
+          {clock.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
+          <span className="punch-dot" />
+        </div>
+        <div className="punch-date">{clock.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
+        <div className="punch-row">
+          <div className="punch-time-box">
+            <div className="punch-time-label">Check-In</div>
+            <div className="punch-time-value">{fmtTime(todayRecord?.checkIn || null)}</div>
+          </div>
+          <div className="punch-time-box">
+            <div className="punch-time-label">Check-Out</div>
+            <div className="punch-time-value">{fmtTime(todayRecord?.checkOut || null)}</div>
+          </div>
+          <div className="punch-time-box">
+            <div className="punch-time-label">Duration</div>
+            <div className="punch-time-value">{durationBetween(todayRecord?.checkIn || null, todayRecord?.checkOut || null)}</div>
+          </div>
+        </div>
+        <div className="punch-actions">
+          {!todayRecord?.checkIn && (
+            <button className="btn-primary" onClick={handleCheckIn} disabled={checkingIn}>
+              {checkingIn ? "Checking in…" : "Check In"}
+            </button>
+          )}
+          {todayRecord?.checkIn && !todayRecord?.checkOut && (
+            <button className="btn-secondary" onClick={handleCheckOut} disabled={checkingOut}>
+              {checkingOut ? "Checking out…" : "Check Out"}
+            </button>
+          )}
+          {todayRecord?.checkOut && (
+            <div className="punch-done">Shift complete for today ✓</div>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="quick-actions">
+        <button className="quick-action-btn" onClick={() => onTabChange("leave")}>◷ Apply for Leave</button>
+        <button className="quick-action-btn" onClick={() => onTabChange("payroll")}>₹ View Payslip</button>
+        <button className="quick-action-btn" onClick={() => onTabChange("profile")}>◉ Update Profile</button>
+      </div>
+
+      {/* Recent Leaves */}
+      {leaves.length > 0 && (
+        <div className="content-card">
+          <div className="content-card-header">
+            <h3>Recent Leave Applications</h3>
+          </div>
+          <table className="data-table">
             <thead>
-              <tr>
-                <th>Date</th>
-                <th>Check-In</th>
-                <th>Check-Out</th>
-                <th>Working Hours</th>
-                <th>Status</th>
-                <th>Notes</th>
-              </tr>
+              <tr><th>Type</th><th>Period</th><th>Duration</th><th>Status</th></tr>
             </thead>
             <tbody>
-              {attendance.map((rec) => (
-                <tr key={rec.id}>
-                  <td>
-                    <strong>
-                      {new Date(rec.date).toLocaleDateString('en-IN', {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short'
-                      })}
-                    </strong>
-                  </td>
-                  <td>{rec.checkIn || '—'}</td>
-                  <td>{rec.checkOut || '—'}</td>
-                  <td>{rec.hours ? `${rec.hours} hrs` : rec.checkIn && !rec.checkOut ? 'In progress' : '—'}</td>
-                  <td>
-                    <span
-                      className={`status-pill status-${rec.status.toLowerCase().replace('-', '')}`}
-                    >
-                      {rec.status}
-                    </span>
-                  </td>
-                  <td style={{ color: 'var(--dayflow-secondary)', fontSize: '0.82rem' }}>
-                    {rec.notes || '—'}
-                  </td>
+              {leaves.map((l) => (
+                <tr key={l.id}>
+                  <td>{l.type}</td>
+                  <td>{fmtDate(l.startDate)} → {fmtDate(l.endDate)}</td>
+                  <td>{daysBetween(l.startDate, l.endDate)} day(s)</td>
+                  <td><span className={`status-pill ${statusColor(l.status)}`}>{statusLabel(l.status)}</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
-    </>
-  )
+      )}
+    </div>
+  );
 }
 
-/* =========================================================================
-   LEAVE SCREEN
-   ========================================================================= */
-function LeaveScreen({
-  leaves,
-  onRequestLeave,
-  modalOpen,
-  setModalOpen
-}: {
-  leaves: Leave[]
-  onRequestLeave: (data: { startDate: string; endDate: string; leaveType: string; reason: string }) => Promise<void>
-  modalOpen: boolean
-  setModalOpen: (open: boolean) => void
-}) {
-  const [form, setForm] = useState({
-    startDate: '',
-    endDate: '',
-    leaveType: 'Paid',
-    reason: ''
-  })
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const showToast = useToast()
+// ─── Attendance Tab ───────────────────────────────────────────────────────────
+function AttendanceTab({ user: _user }: { user: AuthUser }) {
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
 
-  const calculatedDays = useMemo(() => {
-    if (!form.startDate || !form.endDate) return null
-    const start = new Date(form.startDate)
-    const end = new Date(form.endDate)
-    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)) + 1
-    return diff > 0 ? diff : null
-  }, [form.startDate, form.endDate])
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!form.startDate || !form.endDate || !form.reason.trim()) {
-      setError('Please fill all fields.')
-      return
-    }
-    if (new Date(form.endDate) < new Date(form.startDate)) {
-      setError('End date cannot be earlier than start date.')
-      return
-    }
-    setError('')
-    setSubmitting(true)
+  const fetchRecords = useCallback(async () => {
+    setLoading(true);
     try {
-      await onRequestLeave(form)
-      setForm({ startDate: '', endDate: '', leaveType: 'Paid', reason: '' })
-      setModalOpen(false)
-      showToast({
-        kind: 'success',
-        title: 'Leave Application Submitted',
-        description: 'Your request has been submitted and is pending HR Admin approval.'
-      })
-    } catch {
-      setError('Failed to submit leave request.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
+      const r = await getMyAttendance(startDate, endDate);
+      setRecords(r.data || []);
+    } catch (err: unknown) { notify("error", (err as Error).message); }
+    finally { setLoading(false); }
+  }, [startDate, endDate]);
+
+  useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+  const presentCount = records.filter((r) => r.status === "PRESENT").length;
+  const halfDayCount = records.filter((r) => r.status === "HALF_DAY").length;
+  const leaveCount = records.filter((r) => r.status === "LEAVE").length;
+  const absentCount = records.filter((r) => r.status === "ABSENT").length;
 
   return (
-    <>
-      {/* Leave Balances Grid */}
-      <section className="kpi-grid">
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Paid Leave</span>
-            <div className="kpi-icon-box">🏖</div>
-          </div>
-          <div className="kpi-value">10 / 14</div>
-          <div className="kpi-footer">
-            <span>Remaining days this financial year</span>
-          </div>
-        </div>
+    <div className="page-inner">
+      <div className="kpi-grid">
+        <div className="kpi-card"><div className="kpi-icon">✓</div><div><div className="kpi-label">Present</div><div className="kpi-value">{presentCount}</div></div></div>
+        <div className="kpi-card"><div className="kpi-icon">½</div><div><div className="kpi-label">Half-day</div><div className="kpi-value">{halfDayCount}</div></div></div>
+        <div className="kpi-card"><div className="kpi-icon">◷</div><div><div className="kpi-label">On Leave</div><div className="kpi-value">{leaveCount}</div></div></div>
+        <div className="kpi-card"><div className="kpi-icon">✗</div><div><div className="kpi-label">Absent</div><div className="kpi-value">{absentCount}</div></div></div>
+      </div>
 
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Sick Leave</span>
-            <div className="kpi-icon-box">💊</div>
-          </div>
-          <div className="kpi-value">4 / 7</div>
-          <div className="kpi-footer">
-            <span>Remaining with medical coverage</span>
-          </div>
+      <div className="filter-bar">
+        <div className="filter-group">
+          <label>From</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </div>
-
-        <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Unpaid Leave Taken</span>
-            <div className="kpi-icon-box">⏸</div>
-          </div>
-          <div className="kpi-value">0 Days</div>
-          <div className="kpi-footer">
-            <span>No unpaid leaves applied</span>
-          </div>
+        <div className="filter-group">
+          <label>To</label>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
-      </section>
+        <button className="btn-primary" onClick={fetchRecords}>Filter</button>
+      </div>
 
-      {/* Leave Requests Table */}
-      <section className="content-card">
-        <div className="card-header-row">
-          <div>
-            <h3>My Leave Applications</h3>
-            <p style={{ color: 'var(--dayflow-secondary)', fontSize: '0.85rem' }}>
-              Track approval statuses and view HR reviewer comments.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setModalOpen(true)}
-          >
-            <span>+</span>
-            <span className="font-italic-accent">Apply for Leave</span>
-          </button>
-        </div>
-
-        <div className="dayflow-table-wrapper">
-          <table className="dayflow-table">
+      <div className="content-card">
+        {loading ? (
+          <div className="loading-state">Loading attendance records…</div>
+        ) : records.length === 0 ? (
+          <div className="empty-state">No attendance records found for the selected range.</div>
+        ) : (
+          <table className="data-table">
             <thead>
-              <tr>
-                <th>Leave Type</th>
-                <th>Dates</th>
-                <th>Reason</th>
-                <th>HR Comment</th>
-                <th>Status</th>
-              </tr>
+              <tr><th>Date</th><th>Check-In</th><th>Check-Out</th><th>Duration</th><th>Status</th></tr>
             </thead>
             <tbody>
-              {leaves.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--dayflow-secondary)' }}>
-                    No leave requests found. Click &quot;Apply for Leave&quot; above to submit one.
-                  </td>
+              {records.map((r) => (
+                <tr key={r.id}>
+                  <td>{fmtDate(r.date)}</td>
+                  <td>{fmtTime(r.checkIn)}</td>
+                  <td>{fmtTime(r.checkOut)}</td>
+                  <td>{durationBetween(r.checkIn, r.checkOut)}</td>
+                  <td><span className={`status-pill ${statusColor(r.status)}`}>{statusLabel(r.status)}</span></td>
                 </tr>
-              ) : (
-                leaves.map((l) => (
-                  <tr key={l.id}>
-                    <td>
-                      <strong>{l.leaveType} Leave</strong>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>
-                        {l.startDate} → {l.endDate}
-                      </span>
-                    </td>
-                    <td>
-                      <p style={{ fontSize: '0.84rem', color: 'var(--dayflow-ink)' }}>{l.reason}</p>
-                    </td>
-                    <td>
-                      {l.approverComment ? (
-                        <p style={{ fontSize: '0.82rem', fontStyle: 'italic', color: 'var(--dayflow-primary)' }}>
-                          &ldquo;{l.approverComment}&rdquo;
-                        </p>
-                      ) : (
-                        <span style={{ color: 'var(--dayflow-secondary)', fontSize: '0.8rem' }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`status-pill status-${l.status}`}>{l.status}</span>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
-        </div>
-      </section>
+        )}
+      </div>
+    </div>
+  );
+}
 
-      {/* Request Leave Modal */}
+// ─── Leave Tab ────────────────────────────────────────────────────────────────
+function LeaveTab({ user: _user }: { user: AuthUser }) {
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({ type: "PAID", startDate: "", endDate: "", reason: "" });
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchLeaves = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await getMyLeaves();
+      setLeaves(r.data || r.leaves || []);
+    } catch (err: unknown) { notify("error", (err as Error).message); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchLeaves(); }, [fetchLeaves]);
+
+  const handleApply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.startDate || !form.endDate || !form.reason) {
+      notify("error", "All fields are required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await applyLeave(form);
+      notify("success", "Leave application submitted successfully!");
+      setModalOpen(false);
+      setForm({ type: "PAID", startDate: "", endDate: "", reason: "" });
+      fetchLeaves();
+    } catch (err: unknown) { notify("error", (err as Error).message); }
+    finally { setSubmitting(false); }
+  };
+
+  const duration = form.startDate && form.endDate ? daysBetween(form.startDate, form.endDate) : 0;
+
+  return (
+    <div className="page-inner">
+      <div className="section-header">
+        <h2>Leave & Time-Off</h2>
+        <button className="btn-primary" onClick={() => setModalOpen(true)}>+ Apply for Leave</button>
+      </div>
+
+      <div className="content-card">
+        {loading ? (
+          <div className="loading-state">Loading leave applications…</div>
+        ) : leaves.length === 0 ? (
+          <div className="empty-state">No leave applications yet. Apply for your first leave above.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr><th>Type</th><th>Period</th><th>Days</th><th>Reason</th><th>Status</th><th>HR Comment</th></tr>
+            </thead>
+            <tbody>
+              {leaves.map((l) => (
+                <tr key={l.id}>
+                  <td><span className="tag">{l.type}</span></td>
+                  <td className="nowrap">{fmtDate(l.startDate)} → {fmtDate(l.endDate)}</td>
+                  <td>{daysBetween(l.startDate, l.endDate)}</td>
+                  <td className="truncate">{l.reason}</td>
+                  <td><span className={`status-pill ${statusColor(l.status)}`}>{statusLabel(l.status)}</span></td>
+                  <td className="muted">{l.approverComment || l.adminComment || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       {modalOpen && (
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Request Time-Off</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setModalOpen(false)}>
-                ×
-              </button>
+              <h3>Apply for Time-Off</h3>
+              <button className="modal-close" onClick={() => setModalOpen(false)}>✕</button>
             </div>
-            <form onSubmit={handleSubmit}>
-              <div className="modal-body">
-                {error && <p className="form-error">{error}</p>}
+            <form onSubmit={handleApply} className="modal-form">
+              <div className="form-group">
+                <label>Leave Category *</label>
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  <option value="PAID">Paid Leave</option>
+                  <option value="SICK">Sick Leave</option>
+                  <option value="UNPAID">Unpaid Leave</option>
+                  <option value="CASUAL">Casual Leave</option>
+                  <option value="EMERGENCY">Emergency Leave</option>
+                </select>
+              </div>
+              <div className="form-row">
                 <div className="form-group">
-                  <label>Leave Category</label>
-                  <select
-                    className="form-select"
-                    value={form.leaveType}
-                    onChange={(e) => setForm({ ...form, leaveType: e.target.value })}
-                  >
-                    <option value="Paid">Paid Leave (Annual)</option>
-                    <option value="Sick">Sick Leave</option>
-                    <option value="Casual">Casual Leave</option>
-                    <option value="Emergency">Emergency Leave</option>
-                    <option value="Unpaid">Unpaid Leave</option>
-                  </select>
+                  <label>Start Date *</label>
+                  <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} required />
                 </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="form-group">
-                    <label>Start Date</label>
-                    <input
-                      type="date"
-                      className="form-input"
-                      value={form.startDate}
-                      onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>End Date</label>
-                    <input
-                      type="date"
-                      className="form-input"
-                      value={form.endDate}
-                      onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {calculatedDays !== null && (
-                  <div
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      background: 'rgba(159, 126, 74, 0.1)',
-                      border: '1px solid rgba(159, 126, 74, 0.3)',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      color: 'var(--dayflow-ink)'
-                    }}
-                  >
-                    Total Duration: {calculatedDays} {calculatedDays === 1 ? 'Day' : 'Days'}
-                  </div>
-                )}
-
                 <div className="form-group">
-                  <label>Reason / Remarks</label>
-                  <textarea
-                    className="form-textarea"
-                    rows={3}
-                    placeholder="Provide context or handover details for your manager..."
-                    value={form.reason}
-                    onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                    required
-                  />
+                  <label>End Date *</label>
+                  <input type="date" value={form.endDate} min={form.startDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} required />
                 </div>
               </div>
-
+              {duration > 0 && (
+                <div className="duration-chip">{duration} day{duration !== 1 ? "s" : ""} requested</div>
+              )}
+              <div className="form-group">
+                <label>Reason *</label>
+                <textarea
+                  rows={3}
+                  value={form.reason}
+                  onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                  placeholder="Briefly describe the reason for leave…"
+                  required
+                />
+              </div>
               <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setModalOpen(false)}>
-                  Cancel
-                </button>
+                <button type="button" className="btn-ghost" onClick={() => setModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={submitting}>
-                  <span className="font-italic-accent">{submitting ? 'Submitting…' : 'Submit Application'}</span>
+                  {submitting ? "Submitting…" : "Submit Application"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </>
-  )
+    </div>
+  );
 }
 
-/* =========================================================================
-   PAYROLL SCREEN
-   ========================================================================= */
-function PayrollScreen({ payrolls }: { payrolls: PayrollRecord[] }) {
-  const [selectedPayslip, setSelectedPayslip] = useState<PayrollRecord | null>(null)
-  const currentPay = payrolls[0]
+// ─── Payroll Tab ──────────────────────────────────────────────────────────────
+function PayrollTab() {
+  const [data, setData] = useState<{ payroll: PayrollRecord[]; salaryStructure: EmployeeProfile["salaryStructure"] }>({ payroll: [], salaryStructure: null });
+  const [loading, setLoading] = useState(true);
+  const [slipOpen, setSlipOpen] = useState<PayrollRecord | null>(null);
+
+  useEffect(() => {
+    getMyPayroll().then((r) => {
+      setData({ payroll: r.data?.payroll || [], salaryStructure: r.data?.salaryStructures?.[0] || null });
+    }).catch((err: unknown) => notify("error", (err as Error).message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const salary = data.salaryStructure;
+  const netSalary = salary
+    ? salary.baseSalary + Object.values(salary.allowances).reduce((a, b) => a + b, 0)
+    : null;
 
   return (
-    <>
-      {/* Net Salary Summary */}
-      <section className="welcome-banner" style={{ background: 'linear-gradient(135deg, #394032 0%, #454f2d 100%)' }}>
-        <div>
-          <p className="welcome-eyebrow">Monthly Compensation</p>
-          <h2>₹{currentPay ? currentPay.netSalary.toLocaleString('en-IN') : '67,800'}</h2>
-          <p>Net Monthly Take-Home Pay (Credited to HDFC Bank **** 4812)</p>
-        </div>
-        <button
-          type="button"
-          className="banner-action-btn"
-          onClick={() => setSelectedPayslip(currentPay || null)}
-        >
-          <span>📄</span>
-          <span className="font-italic-accent">Download Payslip</span>
-        </button>
-      </section>
-
-      {/* Salary Breakdown Card */}
-      <section className="content-card">
-        <div className="card-header-row">
+    <div className="page-inner">
+      {salary && (
+        <div className="payroll-hero">
           <div>
-            <h3>Salary Structure Breakdown</h3>
-            <p style={{ color: 'var(--dayflow-secondary)', fontSize: '0.85rem' }}>
-              Standard CTC components and monthly deduction schedule.
-            </p>
-          </div>
-          <span className="status-pill status-approved">Verified & Active</span>
-        </div>
-
-        <div className="profile-details-grid">
-          <div className="info-item">
-            <span className="label">Basic Salary</span>
-            <span className="val">₹{currentPay?.basicSalary?.toLocaleString('en-IN') || '45,000'}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">House Rent Allowance (HRA)</span>
-            <span className="val">₹{currentPay?.hra?.toLocaleString('en-IN') || '18,000'}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">Special & Conveyance Allowance</span>
-            <span className="val">₹{currentPay?.allowances?.toLocaleString('en-IN') || '12,000'}</span>
-          </div>
-          <div className="info-item" style={{ background: 'rgba(220, 38, 38, 0.05)', borderColor: 'rgba(220, 38, 38, 0.2)' }}>
-            <span className="label" style={{ color: '#b91c1c' }}>Deductions (PF + Tax)</span>
-            <span className="val" style={{ color: '#b91c1c' }}>- ₹{currentPay?.deductions?.toLocaleString('en-IN') || '7,200'}</span>
+            <div className="payroll-hero-label">Monthly Take-Home Pay</div>
+            <div className="payroll-hero-amount">₹{netSalary?.toLocaleString("en-IN")}</div>
+            <div className="payroll-hero-sub">Effective from {fmtDate(salary.effectiveFrom)}</div>
           </div>
         </div>
-      </section>
+      )}
 
-      {/* Payslips History */}
-      <section className="content-card">
-        <div className="card-header-row">
-          <h3>Payslip History</h3>
+      {salary && (
+        <div className="content-card">
+          <div className="content-card-header"><h3>Salary Structure</h3></div>
+          <div className="salary-grid">
+            <div className="salary-row"><span>Base Salary</span><span>₹{salary.baseSalary.toLocaleString("en-IN")}</span></div>
+            {Object.entries(salary.allowances).map(([k, v]) => (
+              <div key={k} className="salary-row"><span>{k}</span><span>+ ₹{v.toLocaleString("en-IN")}</span></div>
+            ))}
+            <div className="salary-row salary-total"><span>Net Take-Home</span><strong>₹{netSalary?.toLocaleString("en-IN")}</strong></div>
+          </div>
         </div>
+      )}
 
-        <div className="dayflow-table-wrapper">
-          <table className="dayflow-table">
+      <div className="content-card">
+        <div className="content-card-header"><h3>Payslip History</h3></div>
+        {loading ? (
+          <div className="loading-state">Loading payroll records…</div>
+        ) : data.payroll.length === 0 ? (
+          <div className="empty-state">No payslips processed yet. Your payroll will appear here once processed by HR.</div>
+        ) : (
+          <table className="data-table">
             <thead>
-              <tr>
-                <th>Pay Period</th>
-                <th>Gross Pay</th>
-                <th>Total Deductions</th>
-                <th>Net Credited</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
+              <tr><th>Month</th><th>Net Salary</th><th>Status</th><th>Paid On</th><th></th></tr>
             </thead>
             <tbody>
-              {payrolls.map((p) => (
+              {data.payroll.map((p) => (
                 <tr key={p.id}>
-                  <td>
-                    <strong>{p.month}</strong>
-                    <small style={{ display: 'block', color: 'var(--dayflow-secondary)' }}>{p.period}</small>
-                  </td>
-                  <td>₹{(p.basicSalary + p.hra + p.allowances).toLocaleString('en-IN')}</td>
-                  <td style={{ color: '#b91c1c' }}>- ₹{p.deductions.toLocaleString('en-IN')}</td>
-                  <td>
-                    <strong style={{ color: 'var(--dayflow-primary)' }}>₹{p.netSalary.toLocaleString('en-IN')}</strong>
-                  </td>
-                  <td>
-                    <span className="status-pill status-approved">{p.status}</span>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      style={{ padding: '6px 12px', fontSize: '0.78rem' }}
-                      onClick={() => setSelectedPayslip(p)}
-                    >
-                      View Slip
-                    </button>
-                  </td>
+                  <td>{p.month} {p.year}</td>
+                  <td>₹{p.netSalary.toLocaleString("en-IN")}</td>
+                  <td><span className={`status-pill ${statusColor(p.status)}`}>{statusLabel(p.status)}</span></td>
+                  <td>{p.paidAt ? fmtDate(p.paidAt) : "—"}</td>
+                  <td><button className="btn-ghost btn-sm" onClick={() => setSlipOpen(p)}>View Slip</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </section>
+        )}
+      </div>
 
-      {/* Payslip Modal */}
-      {selectedPayslip && (
-        <div className="modal-overlay" onClick={() => setSelectedPayslip(null)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+      {slipOpen && (
+        <div className="modal-overlay" onClick={() => setSlipOpen(null)}>
+          <div className="modal-card payslip-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div>
-                <span className="welcome-eyebrow">Official Salary Slip</span>
-                <h3>Payslip — {selectedPayslip.month}</h3>
-              </div>
-              <button type="button" className="modal-close-btn" onClick={() => setSelectedPayslip(null)}>
-                ×
-              </button>
+              <h3>Payslip — {slipOpen.month} {slipOpen.year}</h3>
+              <button className="modal-close" onClick={() => setSlipOpen(null)}>✕</button>
             </div>
-            <div className="modal-body">
-              <div
-                style={{
-                  border: '1px solid var(--dayflow-border)',
-                  borderRadius: '14px',
-                  padding: '20px',
-                  background: 'var(--dayflow-bg)'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid var(--dayflow-border)', paddingBottom: '10px' }}>
-                  <div>
-                    <strong style={{ fontSize: '1.1rem', fontFamily: 'var(--dayflow-display-font)' }}>DAYFLOW HRMS</strong>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--dayflow-secondary)' }}>Employee: Aarav Sharma (DF-1042)</p>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span className="status-pill status-approved">Paid</span>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--dayflow-secondary)', marginTop: '4px' }}>
-                      Date: {selectedPayslip.paymentDate}
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gap: '8px', fontSize: '0.88rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Basic Salary</span>
-                    <strong>₹{selectedPayslip.basicSalary.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>House Rent Allowance (HRA)</span>
-                    <strong>₹{selectedPayslip.hra.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Special Allowances</span>
-                    <strong>₹{selectedPayslip.allowances.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b91c1c' }}>
-                    <span>Provident Fund & Taxes</span>
-                    <strong>- ₹{selectedPayslip.deductions.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <hr style={{ borderColor: 'var(--dayflow-border)', margin: '8px 0' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', color: 'var(--dayflow-primary)' }}>
-                    <strong>Net Payable</strong>
-                    <strong style={{ fontFamily: 'var(--dayflow-display-font)' }}>
-                      ₹{selectedPayslip.netSalary.toLocaleString('en-IN')}
-                    </strong>
-                  </div>
-                </div>
+            <div className="payslip-content">
+              <div className="payslip-brand">DAYFLOW</div>
+              <div className="payslip-emp">
+                <div>{slipOpen.employeeName}</div>
+                <div className="muted">{slipOpen.employeeId}</div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn-secondary" onClick={() => setSelectedPayslip(null)}>
-                Close
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  window.print()
-                }}
-              >
-                <span>🖨</span>
-                <span className="font-italic-accent">Print / Save PDF</span>
-              </button>
+              <div className="payslip-table">
+                <div className="payslip-row"><span>Base Salary</span><span>₹{slipOpen.baseSalary.toLocaleString("en-IN")}</span></div>
+                {Object.entries(slipOpen.allowances || {}).map(([k, v]) => (
+                  <div key={k} className="payslip-row"><span>{k}</span><span>+ ₹{v.toLocaleString("en-IN")}</span></div>
+                ))}
+                {Object.entries(slipOpen.deductions || {}).map(([k, v]) => (
+                  <div key={k} className="payslip-row deduction"><span>{k}</span><span>- ₹{v.toLocaleString("en-IN")}</span></div>
+                ))}
+                <div className="payslip-row payslip-net"><span>Net Pay</span><strong>₹{slipOpen.netSalary.toLocaleString("en-IN")}</strong></div>
+              </div>
+              <div className="payslip-status">Status: {statusLabel(slipOpen.status)}</div>
             </div>
           </div>
         </div>
       )}
-    </>
-  )
+    </div>
+  );
 }
 
-/* =========================================================================
-   MAIN APP CONTROLLER
-   ========================================================================= */
-function AppContent() {
-  const [route, setRoute] = useState<Route>((window.location.pathname as Route) || (localStorage.getItem('dayflow_token') ? '/dashboard' : '/login'))
-  const [user, setUser] = useState<User | null>(null)
-  const [authChecking, setAuthChecking] = useState(() => Boolean(localStorage.getItem('dayflow_token')))
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(initialAttendance)
-  const [leaves, setLeaves] = useState<Leave[]>(initialLeaves)
-  const [payrolls] = useState<PayrollRecord[]>(initialPayrolls)
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications)
-  const [leaveModalOpen, setLeaveModalOpen] = useState(false)
-  const showToast = useToast()
+// ─── Profile Tab ──────────────────────────────────────────────────────────────
+function ProfileTab({ user, profile: initial }: { user: AuthUser; profile: EmployeeProfile | null }) {
+  const [profile, setProfile] = useState<EmployeeProfile | null>(initial);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({ phone: "", address: "", profilePictureUrl: "" });
+  const [saving, setSaving] = useState(false);
+
+  const openModal = () => {
+    setForm({
+      phone: profile?.phone || "",
+      address: profile?.address || "",
+      profilePictureUrl: profile?.profilePictureUrl || "",
+    });
+    setModalOpen(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const r = await updateMyProfile(form);
+      setProfile(r.data);
+      setModalOpen(false);
+      notify("success", "Profile updated successfully!");
+    } catch (err: unknown) { notify("error", (err as Error).message); }
+    finally { setSaving(false); }
+  };
+
+  const p = profile;
+  const displayName = p?.fullName || user.email.split("@")[0];
+  const salary = p?.salaryStructure;
+  const netSalary = salary
+    ? salary.baseSalary + Object.values(salary.allowances).reduce((a, b) => a + b, 0)
+    : null;
+
+  return (
+    <div className="page-inner">
+      <div className="profile-hero">
+        <div className="profile-avatar-lg">
+          {p?.profilePictureUrl ? (
+            <img src={p.profilePictureUrl} alt={displayName} />
+          ) : (
+            displayName.substring(0, 2).toUpperCase()
+          )}
+        </div>
+        <div>
+          <h2 className="profile-name">{displayName}</h2>
+          <div className="profile-meta">{p?.jobTitle || "—"} · {p?.department || "—"}</div>
+          <div className="profile-badges">
+            <span className="tag">{user.employeeId}</span>
+            <span className={`tag ${p?.isActive ? "tag-active" : "tag-inactive"}`}>{p?.isActive ? "Active" : "Suspended"}</span>
+            <span className="tag">{user.role}</span>
+          </div>
+        </div>
+        <button className="btn-primary ml-auto" onClick={openModal}>Edit Profile</button>
+      </div>
+
+      <div className="profile-grid">
+        <div className="content-card">
+          <div className="content-card-header"><h3>Personal Details</h3></div>
+          <div className="detail-rows">
+            <div className="detail-row"><span>Full Name</span><strong>{displayName}</strong></div>
+            <div className="detail-row"><span>Work Email</span><strong>{p?.email || user.email}</strong></div>
+            <div className="detail-row"><span>Phone</span><strong>{p?.phone || "—"}</strong></div>
+            <div className="detail-row"><span>Address</span><strong>{p?.address || "—"}</strong></div>
+          </div>
+        </div>
+        <div className="content-card">
+          <div className="content-card-header"><h3>Job Details</h3></div>
+          <div className="detail-rows">
+            <div className="detail-row"><span>Employee ID</span><strong>{user.employeeId}</strong></div>
+            <div className="detail-row"><span>Department</span><strong>{p?.department || "—"}</strong></div>
+            <div className="detail-row"><span>Job Title</span><strong>{p?.jobTitle || "—"}</strong></div>
+            <div className="detail-row"><span>Joining Date</span><strong>{p?.createdAt ? fmtDate(p.createdAt) : "—"}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      {salary && (
+        <div className="content-card">
+          <div className="content-card-header"><h3>Salary Structure</h3></div>
+          <div className="salary-grid">
+            <div className="salary-row"><span>Base Salary</span><span>₹{salary.baseSalary.toLocaleString("en-IN")}</span></div>
+            {Object.entries(salary.allowances).map(([k, v]) => (
+              <div key={k} className="salary-row"><span>{k}</span><span>+ ₹{v.toLocaleString("en-IN")}</span></div>
+            ))}
+            {netSalary != null && (
+              <div className="salary-row salary-total"><span>Net Take-Home</span><strong>₹{netSalary.toLocaleString("en-IN")}</strong></div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {modalOpen && (
+        <div className="modal-overlay" onClick={() => setModalOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Edit Profile</h3>
+              <button className="modal-close" onClick={() => setModalOpen(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSave} className="modal-form">
+              <div className="form-group">
+                <label>Phone Number</label>
+                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" />
+              </div>
+              <div className="form-group">
+                <label>Residential Address</label>
+                <textarea rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Plot 12, Sector 4, Bengaluru…" />
+              </div>
+              <div className="form-group">
+                <label>Profile Picture URL</label>
+                <input value={form.profilePictureUrl} onChange={(e) => setForm({ ...form, profilePictureUrl: e.target.value })} placeholder="https://…" />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-ghost" onClick={() => setModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={saving}>{saving ? "Saving…" : "Save Changes"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Root App ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [token, setToken] = useState<string | null>(getToken);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(getSavedUser);
+  const [profile, setProfile] = useState<EmployeeProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   useEffect(() => {
-    const onPopState = () => setRoute((window.location.pathname as Route) || '/dashboard')
-    window.addEventListener('popstate', onPopState)
-    const token = localStorage.getItem('dayflow_token')
-    if (token) {
-      api.me()
-        .then((result) => setUser(result.user))
-        .catch(() => {
-          localStorage.removeItem('dayflow_token')
-          setRoute('/login')
-          window.history.replaceState({}, '', '/login')
-        })
-        .finally(() => setAuthChecking(false))
+    if (token && authUser) {
+      setLoadingProfile(true);
+      getMyProfile()
+        .then((r) => setProfile(r.data))
+        .catch(() => {})
+        .finally(() => setLoadingProfile(false));
     }
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [])
+  }, [token, authUser]);
 
-  const handleAuthenticated = (token: string, authedUser: User) => {
-    localStorage.setItem('dayflow_token', token)
-    setUser(authedUser)
-    go('/dashboard')
+  const handleAuth = (tok: string, user: AuthUser) => {
+    setToken(tok);
+    setAuthUser(user);
+  };
+
+  const handleSignOut = () => {
+    clearSession();
+    setToken(null);
+    setAuthUser(null);
+    setProfile(null);
+  };
+
+  if (!token || !authUser) {
+    return (
+      <>
+        <ToastContainer />
+        <AuthScreen onAuth={handleAuth} />
+      </>
+    );
   }
 
-  const handleCheckIn = () => {
-    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    setAttendance((prev) => {
-      const updated = [...prev]
-      updated[0] = {
-        ...updated[0],
-        checkIn: now,
-        status: 'Present'
-      }
-      return updated
-    })
-    showToast({
-      kind: 'success',
-      title: 'Punch In Recorded',
-      description: `Your check-in at ${now} has been logged.`
-    })
-  }
-
-  const handleCheckOut = () => {
-    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    setAttendance((prev) => {
-      const updated = [...prev]
-      updated[0] = {
-        ...updated[0],
-        checkOut: now,
-        hours: 8.5
-      }
-      return updated
-    })
-    showToast({
-      kind: 'success',
-      title: 'Punch Out Recorded',
-      description: `Your check-out at ${now} has been logged. Have a great evening!`
-    })
-  }
-
-  const handleRequestLeave = async (formData: {
-    startDate: string
-    endDate: string
-    leaveType: string
-    reason: string
-  }) => {
-    const res = await api.createLeave(formData)
-    setLeaves((prev) => [res.leave, ...prev])
-  }
-
-  const handleUpdateProfile = (updated: Partial<User>) => {
-    setUser((prev) => (prev ? { ...prev, ...updated } : prev))
-  }
-
-  const handleMarkNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-    showToast({
-      kind: 'info',
-      title: 'Notifications Cleared',
-      description: 'All notifications marked as read.'
-    })
-  }
-
-  if (authChecking) {
-    return <div className="loading-screen">Checking your Dayflow session…</div>
-  }
-
-  if (!user && route !== '/login' && route !== '/signup') {
-    window.history.replaceState({}, '', '/login')
-    return <AuthCard mode="login" onAuthenticated={handleAuthenticated} />
-  }
-
-  if (route === '/login') {
-    return <AuthCard mode="login" onAuthenticated={handleAuthenticated} />
-  }
-  if (route === '/signup') {
-    return <AuthCard mode="signup" onAuthenticated={handleAuthenticated} />
+  if (loadingProfile && !profile) {
+    return <div className="loading-full">Loading your workspace…</div>;
   }
 
   return (
-    <Shell
-      user={user || initialEmployeeProfile}
-      activeRoute={route}
-      notifications={notifications}
-      onMarkNotificationsRead={handleMarkNotificationsRead}
-    >
-      {route === '/dashboard' && (
-        <DashboardScreen
-          user={user || initialEmployeeProfile}
-          attendance={attendance}
-          leaves={leaves}
-          payrolls={payrolls}
-          onCheckIn={handleCheckIn}
-          onCheckOut={handleCheckOut}
-          onOpenLeaveModal={() => setLeaveModalOpen(true)}
-        />
-      )}
-      {route === '/profile' && (
-        <ProfileScreen
-          user={user || initialEmployeeProfile}
-          onUpdateProfile={handleUpdateProfile}
-        />
-      )}
-      {route === '/attendance' && (
-        <AttendanceScreen
-          attendance={attendance}
-          onCheckIn={handleCheckIn}
-          onCheckOut={handleCheckOut}
-        />
-      )}
-      {route === '/leave' && (
-        <LeaveScreen
-          leaves={leaves}
-          onRequestLeave={handleRequestLeave}
-          modalOpen={leaveModalOpen}
-          setModalOpen={setLeaveModalOpen}
-        />
-      )}
-      {route === '/payroll' && <PayrollScreen payrolls={payrolls} />}
-    </Shell>
-  )
-}
-
-export default function App() {
-  return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
-  )
+    <>
+      <ToastContainer />
+      <Shell user={authUser} profile={profile} onSignOut={handleSignOut} />
+    </>
+  );
 }

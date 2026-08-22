@@ -68,7 +68,6 @@ Example:
 
 ```env
 PORT=4000
-DATABASE_URL=postgresql://user:password@localhost:5432/dayflow
 JWT_SECRET=your_jwt_secret
 CLIENT_URL=http://localhost:5173
 ```
@@ -76,9 +75,9 @@ CLIENT_URL=http://localhost:5173
 Prisma + Supabase
 -----------------
 
-We use Prisma as the ORM and Supabase (Postgres) for hosting the database. Set `DATABASE_URL` to your Supabase connection string (found in the Supabase project settings → Database → Connection string).
+We use Prisma as the ORM and Supabase (Postgres) for hosting the database. Configure the database connection using your local environment file and the connection string from the Supabase project settings → Database → Connection string.
 
-After setting `DATABASE_URL`, run the checked-in migration:
+After configuring the database connection, run the checked-in migration:
 
 ```bash
 npm install
@@ -142,7 +141,7 @@ Run the dependency-free business-rule tests after dependencies are installed:
 npm test
 ```
 
-The tests do not seed or connect to PostgreSQL. For a real database workflow, configure `DATABASE_URL`, deploy the checked-in migration, and run the seed command owned by the database-data contributor.
+The tests do not seed or connect to PostgreSQL. For a real database workflow, configure the database connection, deploy the checked-in migration, and run the seed command owned by the database-data contributor.
 
 ## Related Modules
 - Admin dashboard: `dayflow-admin`
