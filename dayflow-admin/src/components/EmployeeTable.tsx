@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useMemo } from "react";
-import { mockEmployees } from "@/constants/mockData";
+import { useState, useMemo, useEffect } from "react";
+import { getAdminEmployees } from "@/services/api";
+import { handleApiError } from "@/lib/handleApiError";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Employee } from "@/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -18,7 +20,10 @@ type SortField = "fullName" | "department" | "designation" | "status" | null;
 type SortDirection = "asc" | "desc";
 
 export function EmployeeTable() {
-  const [employees, setEmployees] = useState(mockEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+
+
   
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -27,6 +32,27 @@ export function EmployeeTable() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 8;
+
+  useEffect(() => {
+    async function loadEmployees() {
+      setLoading(true);
+      try {
+        const data = await getAdminEmployees({
+          search: searchQuery || undefined,
+          department: departmentFilter !== "all" ? departmentFilter : undefined,
+          active: statusFilter === "all" ? undefined : statusFilter === "active"
+        });
+        setEmployees(data);
+      } catch (error) {
+        handleApiError(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadEmployees();
+  }, [searchQuery, departmentFilter, statusFilter]);
+
+
 
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -190,10 +216,20 @@ export function EmployeeTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedEmployees.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-10 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                  </TableRow>
+                ))
+              ) : paginatedEmployees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    No employees found.
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    No employees found matching your criteria.
                   </TableCell>
                 </TableRow>
               ) : (
