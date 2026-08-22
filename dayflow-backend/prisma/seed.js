@@ -1,3 +1,4 @@
+require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const { PrismaClient, LeaveType, LeaveStatus, Role } = require('@prisma/client');
 
