@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { mockEmployees } from "@/constants/mockData";
-import { Employee } from "@/types";
+import { useState, useEffect, useMemo } from "react";
+import type { Employee } from "@/types";
+import { getEmployees, updateEmployee, addEmployee, ApiError } from "@/services/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,12 +41,12 @@ import {
 import { toast } from "@/components/ui/toast";
 import { EditEmployeeSheet } from "./EditEmployeeSheet";
 
-type SortField = "fullName" | "department" | "designation" | "status" | null;
+type SortField = "fullName" | "department" | "jobTitle" | null;
 type SortDirection = "asc" | "desc";
 
 export function EmployeeTable() {
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
-
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -55,27 +55,38 @@ export function EmployeeTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 7;
 
-  // Modal states
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // New Employee Form State
   const [newEmp, setNewEmp] = useState({
-    fullName: "",
+    employeeId: "",
     email: "",
-    employeeId: `EMP${String(employees.length + 1).padStart(3, "0")}`,
-    department: "Engineering",
-    designation: "",
-    phone: "",
-    address: "",
-    basicSalary: "50000",
+    password: "change-me-at-least-8-chars",
+    firstName: "",
+    lastName: "",
   });
 
-  const uniqueDepartments = useMemo(() => {
-    return Array.from(new Set(employees.map((e) => e.department))).sort();
-  }, [employees]);
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const data = await getEmployees();
+      setEmployees(data);
+    } catch (err) {
+      toast.add({ type: "error", title: "Failed to load employees", description: (err as Error).message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchEmployees(); }, []);
+
+  const uniqueDepartments = useMemo(
+    () => Array.from(new Set(employees.map((e) => e.department ?? "—").filter(Boolean))).sort(),
+    [employees]
+  );
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -86,16 +97,18 @@ export function EmployeeTable() {
     }
   };
 
-  const handleToggleStatus = (emp: Employee) => {
-    const newStatus = emp.status === "active" ? "suspended" : "active";
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === emp.id ? { ...e, status: newStatus } : e))
-    );
-    toast.add({
-      type: newStatus === "active" ? "success" : "warning",
-      title: "Employee Status Updated",
-      description: `${emp.fullName} has been set to ${newStatus.toUpperCase()}.`,
-    });
+  const handleToggleStatus = async (emp: Employee) => {
+    try {
+      const updated = await updateEmployee(emp.id, { isActive: !emp.isActive });
+      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      toast.add({
+        type: updated.isActive ? "success" : "warning",
+        title: "Employee Status Updated",
+        description: `${updated.fullName} has been ${updated.isActive ? "activated" : "suspended"}.`,
+      });
+    } catch (err) {
+      toast.add({ type: "error", title: "Failed to update status", description: (err as Error).message });
+    }
   };
 
   const handleEditClick = (emp: Employee) => {
@@ -107,64 +120,25 @@ export function EmployeeTable() {
     setEmployees((prev) => prev.map((e) => (e.id === updatedEmp.id ? updatedEmp : e)));
   };
 
-  const handleAddEmployee = (e: React.FormEvent) => {
+  const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmp.fullName || !newEmp.email || !newEmp.designation) {
-      toast.add({
-        type: "error",
-        title: "Validation Error",
-        description: "Please fill in all required employee fields.",
-      });
+    if (!newEmp.employeeId || !newEmp.email) {
+      toast.add({ type: "error", title: "Validation Error", description: "Employee ID and email are required." });
       return;
     }
-
-    const basic = Number(newEmp.basicSalary) || 50000;
-    const hra = Math.round(basic * 0.4);
-    const allowances = Math.round(basic * 0.2);
-    const deductions = Math.round(basic * 0.1);
-    const netSalary = basic + hra + allowances - deductions;
-
-    const created: Employee = {
-      id: `uuid-emp-${Date.now()}`,
-      employeeId: newEmp.employeeId,
-      fullName: newEmp.fullName,
-      email: newEmp.email,
-      phone: newEmp.phone || "+91-9876543299",
-      department: newEmp.department,
-      designation: newEmp.designation,
-      role: "employee",
-      status: "active",
-      joiningDate: new Date().toISOString(),
-      profilePictureUrl: `https://i.pravatar.cc/150?u=${newEmp.employeeId}`,
-      address: newEmp.address || "Bengaluru, Karnataka",
-      salaryStructure: {
-        basic,
-        hra,
-        allowances,
-        deductions,
-        netSalary,
-      },
-      documents: [],
-    };
-
-    setEmployees((prev) => [created, ...prev]);
-    setAddModalOpen(false);
-    setNewEmp({
-      fullName: "",
-      email: "",
-      employeeId: `EMP${String(employees.length + 2).padStart(3, "0")}`,
-      department: "Engineering",
-      designation: "",
-      phone: "",
-      address: "",
-      basicSalary: "50000",
-    });
-
-    toast.add({
-      type: "success",
-      title: "Employee Onboarded",
-      description: `${created.fullName} (${created.employeeId}) has been added to the directory.`,
-    });
+    setSaving(true);
+    try {
+      await addEmployee(newEmp);
+      await fetchEmployees();
+      setAddModalOpen(false);
+      setNewEmp({ employeeId: "", email: "", password: "change-me-at-least-8-chars", firstName: "", lastName: "" });
+      toast.add({ type: "success", title: "Employee Onboarded", description: `${newEmp.firstName || newEmp.email} has been added.` });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Failed to add employee.";
+      toast.add({ type: "error", title: "Onboarding Failed", description: msg });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredAndSortedEmployees = useMemo(() => {
@@ -174,34 +148,38 @@ export function EmployeeTable() {
         emp.employeeId.toLowerCase().includes(searchQuery.toLowerCase()) ||
         emp.email.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDept = departmentFilter === "all" || emp.department === departmentFilter;
-      const matchesStatus = statusFilter === "all" || emp.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && emp.isActive) ||
+        (statusFilter === "suspended" && !emp.isActive);
       return matchesSearch && matchesDept && matchesStatus;
     });
 
     if (sortField) {
       result.sort((a, b) => {
-        const aVal = a[sortField];
-        const bVal = b[sortField];
+        const aVal = (a[sortField] ?? "") as string;
+        const bVal = (b[sortField] ?? "") as string;
         if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
         if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
         return 0;
       });
     }
-
     return result;
   }, [employees, searchQuery, departmentFilter, statusFilter, sortField, sortDirection]);
 
   const totalItems = filteredAndSortedEmployees.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage));
-
-  if (currentPage > totalPages && totalPages > 0) {
-    setCurrentPage(totalPages);
-  }
-
   const paginatedEmployees = filteredAndSortedEmployees.slice(
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
+
+  // Compute net salary from the new shape
+  function netSalary(emp: Employee) {
+    if (!emp.salaryStructure) return null;
+    const allowancesSum = Object.values(emp.salaryStructure.allowances).reduce((a, b) => a + b, 0);
+    return emp.salaryStructure.baseSalary + allowancesSum;
+  }
 
   return (
     <div id="employees" className="space-y-4">
@@ -213,7 +191,6 @@ export function EmployeeTable() {
             Manage employee onboarding, department assignments, and access statuses.
           </p>
         </div>
-
         <Button
           onClick={() => setAddModalOpen(true)}
           className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl shadow-sm text-xs font-bold gap-2 shrink-0"
@@ -231,41 +208,22 @@ export function EmployeeTable() {
             placeholder="Search by name, ID, or work email..."
             className="pl-9 w-full rounded-xl border-[#DED9CF] bg-[#F7F6F1] text-xs focus-visible:ring-[#454F2D]"
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
           />
         </div>
-
         <div className="flex gap-2.5">
-          <Select
-            value={departmentFilter}
-            onValueChange={(val) => {
-              setDepartmentFilter(val || "all");
-              setCurrentPage(1);
-            }}
-          >
+          <Select value={departmentFilter} onValueChange={(val) => { setDepartmentFilter(val || "all"); setCurrentPage(1); }}>
             <SelectTrigger className="w-[160px] rounded-xl border-[#DED9CF] bg-[#F7F6F1] text-xs font-semibold text-[#534332]">
               <SelectValue placeholder="Department" />
             </SelectTrigger>
             <SelectContent className="rounded-xl border-[#DED9CF]">
               <SelectItem value="all">All Departments</SelectItem>
               {uniqueDepartments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
+                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-
-          <Select
-            value={statusFilter}
-            onValueChange={(val) => {
-              setStatusFilter(val || "all");
-              setCurrentPage(1);
-            }}
-          >
+          <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val || "all"); setCurrentPage(1); }}>
             <SelectTrigger className="w-[130px] rounded-xl border-[#DED9CF] bg-[#F7F6F1] text-xs font-semibold text-[#534332]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -285,49 +243,28 @@ export function EmployeeTable() {
             <TableHeader className="bg-[#F7F6F1]">
               <TableRow className="border-b border-[#DED9CF]">
                 <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("fullName")}
-                    className="-ml-3 h-8 font-bold text-xs hover:bg-transparent text-[#534332]"
-                  >
-                    Employee
-                    <ArrowUpDown className="ml-1.5 h-3.5 w-3.5 text-[#6D6A61]" />
+                  <Button variant="ghost" onClick={() => handleSort("fullName")} className="-ml-3 h-8 font-bold text-xs hover:bg-transparent text-[#534332]">
+                    Employee <ArrowUpDown className="ml-1.5 h-3.5 w-3.5 text-[#6D6A61]" />
                   </Button>
                 </TableHead>
                 <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("department")}
-                    className="-ml-3 h-8 font-bold text-xs hover:bg-transparent text-[#534332]"
-                  >
-                    Department
-                    <ArrowUpDown className="ml-1.5 h-3.5 w-3.5 text-[#6D6A61]" />
+                  <Button variant="ghost" onClick={() => handleSort("department")} className="-ml-3 h-8 font-bold text-xs hover:bg-transparent text-[#534332]">
+                    Department <ArrowUpDown className="ml-1.5 h-3.5 w-3.5 text-[#6D6A61]" />
                   </Button>
                 </TableHead>
-                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">
-                  Designation
-                </TableHead>
-                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("status")}
-                    className="-ml-3 h-8 font-bold text-xs hover:bg-transparent text-[#534332]"
-                  >
-                    Status
-                    <ArrowUpDown className="ml-1.5 h-3.5 w-3.5 text-[#6D6A61]" />
-                  </Button>
-                </TableHead>
-                <TableHead className="w-[80px] text-right font-bold text-[#534332] text-xs uppercase tracking-wider">
-                  Actions
-                </TableHead>
+                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Role / Title</TableHead>
+                <TableHead className="font-bold text-[#534332] text-xs uppercase tracking-wider">Status</TableHead>
+                <TableHead className="w-[80px] text-right font-bold text-[#534332] text-xs uppercase tracking-wider">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedEmployees.length === 0 ? (
+              {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-[#6D6A61]">
-                    No employees matching the criteria found.
-                  </TableCell>
+                  <TableCell colSpan={5} className="h-32 text-center text-[#6D6A61]">Loading employees…</TableCell>
+                </TableRow>
+              ) : paginatedEmployees.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-32 text-center text-[#6D6A61]">No employees matching the criteria found.</TableCell>
                 </TableRow>
               ) : (
                 paginatedEmployees.map((emp) => (
@@ -335,33 +272,32 @@ export function EmployeeTable() {
                     <TableCell className="py-3.5">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 border border-[#9F7E4A]/50 shadow-xs">
-                          <AvatarImage src={emp.profilePictureUrl} alt={emp.fullName} />
                           <AvatarFallback className="bg-[#454F2D] text-white text-xs font-bold">
                             {emp.fullName.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
                           <span className="font-bold text-sm text-[#534332]">{emp.fullName}</span>
-                          <span className="text-xs text-[#6D6A61]">{emp.employeeId} • {emp.email}</span>
+                          <span className="text-xs text-[#6D6A61]">{emp.employeeId} · {emp.email}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-[#F7F6F1] border border-[#DED9CF] text-[#534332]">
-                        {emp.department}
+                        {emp.department ?? "—"}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs font-semibold text-[#534332]">{emp.designation}</TableCell>
+                    <TableCell className="text-xs font-semibold text-[#534332]">{emp.jobTitle ?? "—"}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={emp.status === "active" ? "default" : "destructive"}
+                        variant={emp.isActive ? "default" : "destructive"}
                         className={
-                          emp.status === "active"
+                          emp.isActive
                             ? "bg-[#454F2D]/15 text-[#454F2D] hover:bg-[#454F2D]/25 border border-[#454F2D]/30 font-bold text-[11px]"
                             : "bg-red-100 text-red-800 border border-red-200 font-bold text-[11px]"
                         }
                       >
-                        {emp.status === "active" ? "Active" : "Suspended"}
+                        {emp.isActive ? "Active" : "Suspended"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -372,27 +308,16 @@ export function EmployeeTable() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 rounded-xl border-[#DED9CF]">
                           <DropdownMenuGroup>
-                            <DropdownMenuItem
-                              onClick={() => setViewingEmployee(emp)}
-                              className="cursor-pointer text-xs font-semibold gap-2"
-                            >
-                              <Eye className="h-3.5 w-3.5 text-[#454F2D]" />
-                              View 360 Profile
+                            <DropdownMenuItem onClick={() => setViewingEmployee(emp)} className="cursor-pointer text-xs font-semibold gap-2">
+                              <Eye className="h-3.5 w-3.5 text-[#454F2D]" /> View 360 Profile
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleEditClick(emp)}
-                              className="cursor-pointer text-xs font-semibold gap-2"
-                            >
-                              <Edit2 className="h-3.5 w-3.5 text-[#797F3E]" />
-                              Edit Details
+                            <DropdownMenuItem onClick={() => handleEditClick(emp)} className="cursor-pointer text-xs font-semibold gap-2">
+                              <Edit2 className="h-3.5 w-3.5 text-[#797F3E]" /> Edit Details
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-[#DED9CF]" />
-                            <DropdownMenuItem
-                              onClick={() => handleToggleStatus(emp)}
-                              className="cursor-pointer text-xs font-semibold gap-2 text-[#534332]"
-                            >
+                            <DropdownMenuItem onClick={() => handleToggleStatus(emp)} className="cursor-pointer text-xs font-semibold gap-2 text-[#534332]">
                               <Power className="h-3.5 w-3.5 text-[#9F7E4A]" />
-                              {emp.status === "active" ? "Suspend Access" : "Activate Access"}
+                              {emp.isActive ? "Suspend Access" : "Activate Access"}
                             </DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
@@ -408,29 +333,10 @@ export function EmployeeTable() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-xs text-[#6D6A61] px-1">
-        <div>
-          Showing {totalItems === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to{" "}
-          {Math.min(currentPage * rowsPerPage, totalItems)} of {totalItems} employees
-        </div>
+        <div>Showing {totalItems === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, totalItems)} of {totalItems} employees</div>
         <div className="space-x-2 flex">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="rounded-xl border-[#DED9CF] text-xs font-bold"
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages || totalPages === 0}
-            className="rounded-xl border-[#DED9CF] text-xs font-bold"
-          >
-            Next
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-xl border-[#DED9CF] text-xs font-bold">Previous</Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="rounded-xl border-[#DED9CF] text-xs font-bold">Next</Button>
         </div>
       </div>
 
@@ -440,111 +346,39 @@ export function EmployeeTable() {
           <DialogHeader>
             <DialogTitle className="font-display text-lg text-[#534332]">Onboard New Employee</DialogTitle>
             <DialogDescription className="text-xs text-[#6D6A61]">
-              Add a new staff member to Dayflow with initial salary configuration.
+              Register a new employee account. They can update their profile after first sign-in.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddEmployee} className="space-y-3.5 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#534332]">Full Name *</label>
-                <Input
-                  value={newEmp.fullName}
-                  onChange={(e) => setNewEmp({ ...newEmp, fullName: e.target.value })}
-                  placeholder="e.g. Priyanshu Roy"
-                  className="rounded-xl border-[#DED9CF] text-xs"
-                  required
-                />
+                <label className="text-xs font-bold text-[#534332]">First Name</label>
+                <Input value={newEmp.firstName} onChange={(e) => setNewEmp({ ...newEmp, firstName: e.target.value })} placeholder="Aarav" className="rounded-xl border-[#DED9CF] text-xs" />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#534332]">Last Name</label>
+                <Input value={newEmp.lastName} onChange={(e) => setNewEmp({ ...newEmp, lastName: e.target.value })} placeholder="Sharma" className="rounded-xl border-[#DED9CF] text-xs" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#534332]">Employee ID *</label>
-                <Input
-                  value={newEmp.employeeId}
-                  onChange={(e) => setNewEmp({ ...newEmp, employeeId: e.target.value })}
-                  className="rounded-xl border-[#DED9CF] text-xs"
-                  required
-                />
+                <Input value={newEmp.employeeId} onChange={(e) => setNewEmp({ ...newEmp, employeeId: e.target.value })} placeholder="EMP005" className="rounded-xl border-[#DED9CF] text-xs" required />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#534332]">Work Email *</label>
-                <Input
-                  type="email"
-                  value={newEmp.email}
-                  onChange={(e) => setNewEmp({ ...newEmp, email: e.target.value })}
-                  placeholder="name@dayflow.com"
-                  className="rounded-xl border-[#DED9CF] text-xs"
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#534332]">Phone Number</label>
-                <Input
-                  value={newEmp.phone}
-                  onChange={(e) => setNewEmp({ ...newEmp, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  className="rounded-xl border-[#DED9CF] text-xs"
-                />
+                <Input type="email" value={newEmp.email} onChange={(e) => setNewEmp({ ...newEmp, email: e.target.value })} placeholder="name@dayflow.local" className="rounded-xl border-[#DED9CF] text-xs" required />
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#534332]">Department *</label>
-                <Select
-                  value={newEmp.department}
-                  onValueChange={(val) => setNewEmp({ ...newEmp, department: val || "Engineering" })}
-                >
-                  <SelectTrigger className="rounded-xl border-[#DED9CF] text-xs">
-                    <SelectValue placeholder="Department" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-[#DED9CF]">
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="HR">HR</SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                    <SelectItem value="Sales">Sales</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#534332]">Designation *</label>
-                <Input
-                  value={newEmp.designation}
-                  onChange={(e) => setNewEmp({ ...newEmp, designation: e.target.value })}
-                  placeholder="e.g. Software Engineer"
-                  className="rounded-xl border-[#DED9CF] text-xs"
-                  required
-                />
-              </div>
-            </div>
-
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#534332]">Base Monthly Salary (₹)</label>
-              <Input
-                type="number"
-                value={newEmp.basicSalary}
-                onChange={(e) => setNewEmp({ ...newEmp, basicSalary: e.target.value })}
-                className="rounded-xl border-[#DED9CF] text-xs"
-              />
+              <label className="text-xs font-bold text-[#534332]">Temporary Password *</label>
+              <Input value={newEmp.password} onChange={(e) => setNewEmp({ ...newEmp, password: e.target.value })} className="rounded-xl border-[#DED9CF] text-xs" required minLength={8} />
+              <p className="text-[11px] text-[#6D6A61]">Employee should change this password after first sign-in.</p>
             </div>
-
             <DialogFooter className="pt-3 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAddModalOpen(false)}
-                className="rounded-xl border-[#DED9CF] text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl text-xs font-bold"
-              >
-                Onboard Employee
+              <Button type="button" variant="outline" onClick={() => setAddModalOpen(false)} className="rounded-xl border-[#DED9CF] text-xs">Cancel</Button>
+              <Button type="submit" disabled={saving} className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl text-xs font-bold">
+                {saving ? "Onboarding…" : "Onboard Employee"}
               </Button>
             </DialogFooter>
           </form>
@@ -557,33 +391,26 @@ export function EmployeeTable() {
           <DialogContent className="sm:max-w-xl rounded-2xl border-[#DED9CF]">
             <DialogHeader>
               <DialogTitle className="font-display text-lg text-[#534332]">Employee 360° Profile</DialogTitle>
-              <DialogDescription className="text-xs text-[#6D6A61]">
-                Complete employment records, contact details, and compensation.
-              </DialogDescription>
+              <DialogDescription className="text-xs text-[#6D6A61]">Complete employment records, contact details, and compensation.</DialogDescription>
             </DialogHeader>
-
             <div className="space-y-4 py-2">
-              {/* Profile Card Header */}
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-[#F7F6F1] border border-[#DED9CF]">
                 <Avatar className="h-14 w-14 border-2 border-[#9F7E4A]">
-                  <AvatarImage src={viewingEmployee.profilePictureUrl} alt={viewingEmployee.fullName} />
                   <AvatarFallback className="bg-[#454F2D] text-white font-bold text-lg">
                     {viewingEmployee.fullName.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <h4 className="font-display font-bold text-base text-[#534332]">{viewingEmployee.fullName}</h4>
-                  <p className="text-xs text-[#6D6A61] font-semibold">{viewingEmployee.designation} • {viewingEmployee.department}</p>
+                  <p className="text-xs text-[#6D6A61] font-semibold">{viewingEmployee.jobTitle ?? "—"} · {viewingEmployee.department ?? "—"}</p>
                   <div className="flex gap-2 mt-1.5">
                     <Badge className="bg-[#454F2D] text-white text-[10px]">{viewingEmployee.employeeId}</Badge>
-                    <Badge variant="outline" className="border-[#9F7E4A] text-[#9F7E4A] text-[10px] font-bold">
-                      {viewingEmployee.status.toUpperCase()}
+                    <Badge variant="outline" className={`text-[10px] font-bold ${viewingEmployee.isActive ? "border-[#9F7E4A] text-[#9F7E4A]" : "border-red-400 text-red-600"}`}>
+                      {viewingEmployee.isActive ? "ACTIVE" : "SUSPENDED"}
                     </Badge>
                   </div>
                 </div>
               </div>
-
-              {/* Contact & Job Grid */}
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="p-3 rounded-xl bg-white border border-[#DED9CF] space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6A61] flex items-center gap-1.5">
@@ -595,69 +422,50 @@ export function EmployeeTable() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6A61] flex items-center gap-1.5">
                     <Phone className="h-3 w-3 text-[#797F3E]" /> Phone
                   </span>
-                  <p className="font-bold text-[#534332]">{viewingEmployee.phone}</p>
+                  <p className="font-bold text-[#534332]">{viewingEmployee.phone ?? "—"}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-white border border-[#DED9CF] space-y-1 col-span-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6A61] flex items-center gap-1.5">
                     <MapPin className="h-3 w-3 text-[#797F3E]" /> Residential Address
                   </span>
-                  <p className="font-bold text-[#534332]">{viewingEmployee.address}</p>
+                  <p className="font-bold text-[#534332]">{viewingEmployee.address ?? "—"}</p>
                 </div>
               </div>
-
-              {/* Compensation Summary */}
-              <div className="p-4 rounded-2xl bg-[#F7F6F1] border border-[#DED9CF]">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6A61] flex items-center gap-1.5 mb-2.5">
-                  <Wallet className="h-3.5 w-3.5 text-[#454F2D]" /> Compensation & Net Take-Home
-                </span>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="p-2 rounded-xl bg-white border border-[#DED9CF]">
-                    <span className="text-[10px] text-[#6D6A61] block">Basic Salary</span>
-                    <strong className="text-xs text-[#534332]">₹{viewingEmployee.salaryStructure.basic.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <div className="p-2 rounded-xl bg-white border border-[#DED9CF]">
-                    <span className="text-[10px] text-[#6D6A61] block">Allowances</span>
-                    <strong className="text-xs text-[#534332]">₹{viewingEmployee.salaryStructure.allowances.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <div className="p-2 rounded-xl bg-[#454F2D]/10 border border-[#454F2D]/30">
-                    <span className="text-[10px] text-[#454F2D] font-bold block">Net Salary</span>
-                    <strong className="text-xs text-[#454F2D] font-display">₹{viewingEmployee.salaryStructure.netSalary.toLocaleString('en-IN')}</strong>
+              {viewingEmployee.salaryStructure && (
+                <div className="p-4 rounded-2xl bg-[#F7F6F1] border border-[#DED9CF]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#6D6A61] flex items-center gap-1.5 mb-2.5">
+                    <Wallet className="h-3.5 w-3.5 text-[#454F2D]" /> Compensation & Net Take-Home
+                  </span>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 rounded-xl bg-white border border-[#DED9CF]">
+                      <span className="text-[10px] text-[#6D6A61] block">Base Salary</span>
+                      <strong className="text-xs text-[#534332]">₹{viewingEmployee.salaryStructure.baseSalary.toLocaleString("en-IN")}</strong>
+                    </div>
+                    {Object.entries(viewingEmployee.salaryStructure.allowances).map(([k, v]) => (
+                      <div key={k} className="p-2 rounded-xl bg-white border border-[#DED9CF]">
+                        <span className="text-[10px] text-[#6D6A61] block">{k}</span>
+                        <strong className="text-xs text-[#534332]">₹{v.toLocaleString("en-IN")}</strong>
+                      </div>
+                    ))}
+                    <div className="p-2 rounded-xl bg-[#454F2D]/10 border border-[#454F2D]/30">
+                      <span className="text-[10px] text-[#454F2D] font-bold block">Net Salary</span>
+                      <strong className="text-xs text-[#454F2D] font-display">₹{netSalary(viewingEmployee)?.toLocaleString("en-IN")}</strong>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
-
             <DialogFooter className="gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setViewingEmployee(null)}
-                className="rounded-xl border-[#DED9CF] text-xs"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  const emp = viewingEmployee;
-                  setViewingEmployee(null);
-                  handleEditClick(emp);
-                }}
-                className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl text-xs font-bold gap-1.5"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-                Edit Profile
+              <Button variant="outline" onClick={() => setViewingEmployee(null)} className="rounded-xl border-[#DED9CF] text-xs">Close</Button>
+              <Button onClick={() => { const emp = viewingEmployee; setViewingEmployee(null); handleEditClick(emp); }} className="bg-[#454F2D] hover:bg-[#394032] text-white rounded-xl text-xs font-bold gap-1.5">
+                <Edit2 className="h-3.5 w-3.5" /> Edit Profile
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* Edit Employee Sheet */}
-      <EditEmployeeSheet
-        employee={editingEmployee}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        onSave={handleSaveEmployee}
-      />
+      <EditEmployeeSheet employee={editingEmployee} open={sheetOpen} onOpenChange={setSheetOpen} onSave={handleSaveEmployee} />
     </div>
   );
 }

@@ -15,11 +15,11 @@ import {
   clearSession,
   getToken,
   getSavedUser,
-  AuthUser,
-  EmployeeProfile,
-  AttendanceRecord,
-  LeaveRequest,
-  PayrollRecord,
+  type AuthUser,
+  type EmployeeProfile,
+  type AttendanceRecord,
+  type LeaveRequest,
+  type PayrollRecord,
 } from "./api";
 
 // ─── Notification helper ──────────────────────────────────────────────────────
