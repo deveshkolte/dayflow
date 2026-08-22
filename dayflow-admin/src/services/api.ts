@@ -149,3 +149,11 @@ export async function getAdminEmployees(filters?: { search?: string; department?
   const employees = await apiRequest<any[]>(`/admin/employees${suffix}`);
   return employees.map(mapEmployee);
 }
+
+export async function updateAdminEmployee(id: string, updates: { isActive?: boolean }) {
+  const employee = await apiRequest<any>(`/admin/employees/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+  return mapEmployee(employee);
+}

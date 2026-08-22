@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
-import { getAdminEmployees } from "@/services/api";
+import { getAdminEmployees, updateAdminEmployee } from "@/services/api";
 import { handleApiError } from "@/lib/handleApiError";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Employee } from "@/types";
@@ -22,6 +22,7 @@ type SortDirection = "asc" | "desc";
 export function EmployeeTable() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
 
 
   
@@ -70,14 +71,26 @@ export function EmployeeTable() {
     }
   };
 
-  const handleToggleStatus = (emp: Employee) => {
+  const handleToggleStatus = async (emp: Employee) => {
+    if (togglingStatusId) return;
+
+    setTogglingStatusId(emp.id);
     const newStatus = emp.status === "active" ? "suspended" : "active";
-    setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, status: newStatus } : e));
-    toast.add({
-      type: "success",
-      title: "Status Updated",
-      description: `${emp.fullName} is now ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}.`,
-    });
+    const isActive = newStatus === "active";
+    
+    try {
+      await updateAdminEmployee(emp.id, { isActive });
+      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, status: newStatus } : e));
+      toast.add({
+        type: "success",
+        title: "Status Updated",
+        description: `${emp.fullName} is now ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}.`,
+      });
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setTogglingStatusId(null);
+    }
   };
 
   const handleEditClick = (emp: Employee) => {
@@ -266,7 +279,9 @@ export function EmployeeTable() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuGroup>
                             <DropdownMenuItem onClick={() => handleEditClick(emp)}>Edit</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleStatus(emp)}>Toggle Status</DropdownMenuItem>
+                            <DropdownMenuItem disabled={togglingStatusId === emp.id} onClick={() => handleToggleStatus(emp)}>
+                              {togglingStatusId === emp.id ? "Updating..." : "Toggle Status"}
+                            </DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
                       </DropdownMenu>
