@@ -67,3 +67,11 @@ export type EmployeeStatus = Employee["status"];
 export type AttendanceStatus = Attendance["status"];
 export type LeaveType = LeaveRequest["type"];
 export type LeaveStatus = LeaveRequest["status"];
+
+// This is the authenticated identity returned by the backend login endpoint.
+export interface AuthenticatedUser {
+  id: string;
+  employeeId: string;
+  email: string;
+  role: "EMPLOYEE" | "HR" | "ADMIN";
+}
