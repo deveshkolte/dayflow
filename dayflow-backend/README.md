@@ -1,0 +1,55 @@
+# DayFlow Backend
+
+## Overview
+This module provides the server-side logic and API layer for the DayFlow HRMS. It handles business rules for employee records, attendance, leave management, payroll, authentication, and admin workflows.
+
+## Responsibilities
+- Expose REST APIs for frontend clients
+- Enforce role-based permissions and business rules
+- Validate and persist HR data in the database
+- Process approval workflows and status transitions
+- Support secure authentication and session handling
+
+## Core Features
+- Authentication and authorization
+- Employee management APIs
+- Attendance tracking and status updates
+- Leave request creation and approval flows
+- Payroll and salary-related data access
+- Error handling, validation, and audit logging
+
+## Suggested Project Structure
+- src/controllers: request handling
+- src/routes: API endpoint registration
+- src/services: business logic
+- src/models: database entities
+- src/middleware: auth, validation, logging
+- src/config: environment and database config
+
+## Local Setup
+```bash
+cd dayflow-backend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+## Environment Variables
+Example:
+
+```env
+PORT=5000
+JWT_SECRET=your_jwt_secret
+DATABASE_URL=postgresql://user:password@localhost:5432/dayflow
+CLIENT_URL=http://localhost:5173
+```
+
+## API Design Notes
+- Keep endpoints modular and versioned when needed.
+- Use clear validation for leave, attendance, and payroll transitions.
+- Apply role checks before executing sensitive actions.
+- Return consistent JSON responses for success and error states.
+
+## Related Modules
+- Admin dashboard: `dayflow-admin`
+- Employee portal: `dayflow-employee`
