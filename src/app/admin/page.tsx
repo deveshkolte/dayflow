@@ -1,4 +1,5 @@
 import { KpiGrid } from "@/components/admin/KpiGrid";
+import { EmployeeTable } from "@/components/admin/EmployeeTable";
 
 export default function AdminDashboardPage() {
   return (
@@ -10,7 +11,7 @@ export default function AdminDashboardPage() {
       
       <KpiGrid />
       
-      {/* Employee table will go here */}
+      <EmployeeTable />
     </div>
   );
 }
