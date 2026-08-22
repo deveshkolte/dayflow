@@ -21,7 +21,8 @@ export default function ReportsPage() {
   // Department distribution
   const deptCounts: Record<string, number> = {};
   mockEmployees.forEach((e) => {
-    deptCounts[e.department] = (deptCounts[e.department] || 0) + 1;
+    const dept = e.department || "Unassigned";
+    deptCounts[dept] = (deptCounts[dept] || 0) + 1;
   });
 
   // Leave breakdown
