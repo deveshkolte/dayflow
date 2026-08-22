@@ -192,3 +192,14 @@ export async function updateSalaryStructure(
     body: JSON.stringify(input),
   });
 }
+
+// ─── Backwards Compatibility Aliases ──────────────────────────────────────────
+export const getAdminEmployees = getEmployees;
+export const updateAdminEmployee = (id: string, updates: { status?: string; isActive?: boolean }) =>
+  updateEmployee(id, { isActive: updates.status ? updates.status === "active" : updates.isActive });
+export const getAdminAttendance = getAttendance;
+export const getAdminLeaveRequests = getLeaveRequests;
+export const getAdminPayroll = getPayroll;
+export const updateAdminSalary = (employeeId: string, input: { basic?: number; hra?: number; allowances?: number; deductions?: number }) =>
+  updateSalaryStructure(employeeId, { baseSalary: input.basic ?? 0, effectiveFrom: new Date().toISOString() });
+
