@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node dist/main.js",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint . --ext .ts",
