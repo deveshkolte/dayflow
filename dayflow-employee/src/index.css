@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Aboreto&family=Lato:wght@700&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --dayflow-bg: #f7f6f1;
+  --dayflow-card: #ffffff;
+  --dayflow-ink: #534332;
+  --dayflow-secondary: #6d6a61;
+  --dayflow-border: #ded9cf;
+  --dayflow-primary: #454f2d;
+  --dayflow-muted: #797f3e;
+  --dayflow-accent: #9f7e4a;
+  --dayflow-cream: #f5f1e7;
+  --dayflow-soft: #eae5dc;
+  --dayflow-ink-dark: #394032;
+}
+
+@theme {
+  --color-dayflow-bg: var(--dayflow-bg);
+  --color-dayflow-card: var(--dayflow-card);
+  --color-dayflow-ink: var(--dayflow-ink);
+  --color-dayflow-secondary: var(--dayflow-secondary);
+  --color-dayflow-border: var(--dayflow-border);
+  --color-dayflow-primary: var(--dayflow-primary);
+  --color-dayflow-muted: var(--dayflow-muted);
+  --color-dayflow-accent: var(--dayflow-accent);
+  --color-dayflow-cream: var(--dayflow-cream);
+  --color-dayflow-soft: var(--dayflow-soft);
+  --color-dayflow-ink-dark: var(--dayflow-ink-dark);
+}
+
+:root {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  --dayflow-display-font: 'Aboreto', Georgia, serif;
+  --dayflow-body-font: 'Lato', 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--dayflow-ink);
+  background: var(--dayflow-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  background: var(--dayflow-bg);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--dayflow-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
