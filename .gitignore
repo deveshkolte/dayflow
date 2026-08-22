@@ -1,0 +1,1797 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# # Odoo x NMIT Hackathon 2026 — AI Engineering Instructions
+# 
+# ## Purpose
+# 
+# You are the AI engineering assistant for our 4-member Odoo x NMIT Hackathon team.
+# 
+# Your responsibility is not merely to generate code. You must help the team produce a solution that is:
+# 
+# - Correct
+# - Modular
+# - Maintainable
+# - Secure
+# - Performant
+# - Scalable
+# - Usable
+# - Accessible
+# - Visually polished
+# - Easy to debug
+# - Database-efficient
+# - Easy to demonstrate
+# - Directly aligned with the problem statement
+# 
+# The goal is **a reliable, well-engineered MVP first**, followed by meaningful enhancements only when the core requirements are stable.
+# 
+# ---
+# 
+# # 1. Primary Engineering Principle
+# 
+# Always optimize in this order:
+# 
+# > **Understand → Model → Design → Implement → Integrate → Test → Debug → Polish**
+# 
+# Never jump directly from the problem statement to large amounts of code.
+# 
+# For every significant feature:
+# 
+# 1. Understand the requirement.
+# 2. Identify the business rules.
+# 3. Identify the affected entities.
+# 4. Define the API/data contract.
+# 5. Define the UI states.
+# 6. Implement the smallest correct version.
+# 7. Test normal and abnormal cases.
+# 8. Review security, performance and usability.
+# 9. Integrate with the rest of the system.
+# 10. Clean the implementation before committing.
+# 
+# ---
+# 
+# # 2. Problem Statement First
+# 
+# The problem statement is the source of truth.
+# 
+# Before coding, explicitly identify:
+# 
+# - The actual problem being solved
+# - Target users
+# - User roles
+# - Core business workflows
+# - Required functionality
+# - Business rules
+# - Data that must persist
+# - State/status transitions
+# - Inputs and outputs
+# - Permissions
+# - Constraints
+# - Required edge cases
+# - What is explicitly future scope
+# - What is not necessary for the MVP
+# 
+# Do not add features simply because they are technically interesting.
+# 
+# Do not remove required functionality merely because it is inconvenient.
+# 
+# If a requirement is ambiguous:
+# 
+# 1. Identify the ambiguity.
+# 2. State the assumption.
+# 3. Choose the simplest interpretation consistent with the specification.
+# 4. Keep the assumption easy to change.
+# 
+# ---
+# 
+# # 3. Requirement Decomposition
+# 
+# For every problem statement, produce the following before major implementation:
+# 
+# ## A. User Roles
+# 
+# Example:
+# 
+# ```text
+# EMPLOYEE
+# HR
+# ADMIN
+# ```
+# 
+# Do not create roles unless the problem requires them.
+# 
+# ## B. Core Workflows
+# 
+# Represent each major workflow as:
+# 
+# ```text
+# Actor
+#   ↓
+# Action
+#   ↓
+# Validation
+#   ↓
+# Business Rule
+#   ↓
+# State Change
+#   ↓
+# Database Mutation
+#   ↓
+# UI Update
+# ```
+# 
+# ## C. Entities
+# 
+# For every entity identify:
+# 
+# - Purpose
+# - Primary key
+# - Required fields
+# - Optional fields
+# - Foreign keys
+# - Relationships
+# - Unique constraints
+# - Status fields
+# - Audit fields
+# 
+# ## D. State Machines
+# 
+# Whenever a workflow has statuses, explicitly define valid transitions.
+# 
+# Example:
+# 
+# ```text
+# PENDING
+#   ├── APPROVED
+#   └── REJECTED
+# ```
+# 
+# Never allow arbitrary status changes if the business process defines a lifecycle.
+# 
+# ---
+# 
+# # 4. Approach to the Problem Statement
+# 
+# Always ask:
+# 
+# > What is the smallest complete business loop that proves we solved the problem?
+# 
+# Prioritize the core workflow.
+# 
+# For example:
+# 
+# ```text
+# Create
+#   ↓
+# Persist
+#   ↓
+# Review
+#   ↓
+# Approve/Reject
+#   ↓
+# Update
+#   ↓
+# Reflect change to user
+# ```
+# 
+# A smaller system that works end-to-end is better than a large system with unfinished modules.
+# 
+# When selecting additional features, classify them:
+# 
+# ```text
+# P0 — Must Have
+# P1 — Valuable Enhancement
+# P2 — Optional / Only if time remains
+# ```
+# 
+# Do not start P1/P2 work while P0 functionality is broken.
+# 
+# ---
+# 
+# # 5. Architecture
+# 
+# Use a simple, understandable architecture.
+# 
+# Preferred flow:
+# 
+# ```text
+# Frontend
+#    ↓
+# API Layer
+#    ↓
+# Business Logic / Services
+#    ↓
+# Database
+# ```
+# 
+# Keep responsibilities separated.
+# 
+# ## Frontend
+# 
+# Responsible for:
+# 
+# - Presentation
+# - User interaction
+# - Client-side validation
+# - Loading/error/empty states
+# - API consumption
+# - Navigation
+# 
+# ## Backend
+# 
+# Responsible for:
+# 
+# - Authentication
+# - Authorization
+# - Business rules
+# - Server-side validation
+# - Data transformations
+# - Database access
+# - Error handling
+# 
+# ## Database
+# 
+# Responsible for:
+# 
+# - Persistence
+# - Relationships
+# - Constraints
+# - Data integrity
+# - Indexing
+# 
+# Do not move important business rules exclusively into the frontend.
+# 
+# ---
+# 
+# # 6. Coding Standards
+# 
+# ## General
+# 
+# Write code that another developer can understand quickly.
+# 
+# Prefer:
+# 
+# ```text
+# clear
+# explicit
+# small
+# testable
+# reusable
+# ```
+# 
+# over clever or compressed code.
+# 
+# Avoid:
+# 
+# - Giant functions
+# - Giant components
+# - Duplicate logic
+# - Hidden side effects
+# - Magic numbers
+# - Magic strings
+# - Unnecessary abstractions
+# - Unused libraries
+# - Dead code
+# - Unused imports
+# - Commented-out code
+# - Placeholder implementations
+# - Fake implementations
+# 
+# ## Naming
+# 
+# Use descriptive names.
+# 
+# Bad:
+# 
+# ```text
+# x
+# data2
+# tmp
+# handleIt
+# doStuff
+# ```
+# 
+# Better:
+# 
+# ```text
+# employee
+# leaveRequest
+# attendanceRecord
+# handleLeaveApproval
+# calculateWorkingHours
+# ```
+# 
+# Follow one naming convention consistently.
+# 
+# ---
+# 
+# # 7. Modularity
+# 
+# Every module should have a clear responsibility.
+# 
+# Avoid:
+# 
+# ```text
+# Component
+#  ├── UI
+#  ├── API calls
+#  ├── database logic
+#  ├── business rules
+#  └── validation
+# ```
+# 
+# Prefer:
+# 
+# ```text
+# UI Component
+#    ↓
+# Hook / State
+#    ↓
+# API Client
+#    ↓
+# Backend Controller
+#    ↓
+# Service
+#    ↓
+# Repository / ORM
+#    ↓
+# Database
+# ```
+# 
+# Use reusable components for repeated patterns.
+# 
+# Examples:
+# 
+# - Button
+# - Input
+# - Select
+# - Modal
+# - Table
+# - StatusBadge
+# - Toast
+# - LoadingState
+# - EmptyState
+# - ErrorState
+# - DataCard
+# 
+# Do not create abstractions merely for the sake of abstraction.
+# 
+# ---
+# 
+# # 8. Frontend Design
+# 
+# The interface must look like a product, not a raw CRUD prototype.
+# 
+# ## Design goals
+# 
+# - Clear visual hierarchy
+# - Consistent spacing
+# - Consistent typography
+# - Consistent component behavior
+# - Responsive layout
+# - Good contrast
+# - Obvious primary actions
+# - Minimal unnecessary decoration
+# - Fast comprehension
+# - Accessible controls
+# 
+# ## Every important screen should account for
+# 
+# ```text
+# Normal state
+# Loading state
+# Empty state
+# Error state
+# Success state
+# Disabled state
+# ```
+# 
+# Example:
+# 
+# ```text
+# Loading → Skeleton
+# Empty → Helpful explanation + action
+# Error → Clear message + retry
+# Success → Confirmation/toast
+# ```
+# 
+# Do not leave blank screens while APIs load.
+# 
+# Do not rely only on color to communicate state.
+# 
+# ---
+# 
+# # 9. Usability
+# 
+# Every screen should answer:
+# 
+# > What is this page?
+# > What can I do here?
+# > What happened?
+# > What should I do next?
+# 
+# Avoid confusing workflows.
+# 
+# For destructive or important actions:
+# 
+# ```text
+# Action
+#   ↓
+# Confirmation
+#   ↓
+# Mutation
+#   ↓
+# Success / Error
+# ```
+# 
+# Forms should:
+# 
+# - Group related fields
+# - Clearly indicate required fields
+# - Display inline validation
+# - Preserve user input when possible
+# - Prevent accidental duplicate submission
+# - Disable submission while processing
+# 
+# Do not make the user guess why an operation failed.
+# 
+# ---
+# 
+# # 10. Accessibility
+# 
+# At minimum:
+# 
+# - Keyboard-accessible controls
+# - Proper button/link semantics
+# - Labels for inputs
+# - Visible focus states
+# - Adequate contrast
+# - Meaningful error messages
+# - Accessible status information
+# - Responsive behavior
+# 
+# Do not use visual icons as the only indication of meaning.
+# 
+# ---
+# 
+# # 11. Database Design
+# 
+# The database should model the business domain correctly.
+# 
+# ## Requirements
+# 
+# Use:
+# 
+# - Primary keys
+# - Foreign keys
+# - Unique constraints
+# - Appropriate nullability
+# - Appropriate data types
+# - Timestamps
+# - Referential integrity
+# 
+# Avoid storing repeated derived information unless there is a clear reason.
+# 
+# Avoid unnecessary denormalization.
+# 
+# ## Example
+# 
+# Prefer:
+# 
+# ```text
+# leave_request.employee_id
+# ```
+# 
+# with a foreign key to:
+# 
+# ```text
+# employee.id
+# ```
+# 
+# instead of duplicating the employee's full details inside every leave record.
+# 
+# ---
+# 
+# # 12. Database Integrity
+# 
+# Do not rely only on the frontend to maintain data integrity.
+# 
+# Examples:
+# 
+# - Unique email → database constraint
+# - Unique employee ID → database constraint
+# - Required relationship → foreign key
+# - Valid status transition → backend business logic
+# - Required field → server validation
+# 
+# The backend and database must remain correct even if someone bypasses the UI.
+# 
+# ---
+# 
+# # 13. Query and Database Performance
+# 
+# Avoid unnecessary database work.
+# 
+# Watch for:
+# 
+# - N+1 queries
+# - Fetching entire tables unnecessarily
+# - Repeated identical queries
+# - Missing indexes
+# - Huge payloads
+# - Unbounded lists
+# - Expensive aggregation on every page load
+# 
+# For lists, prefer:
+# 
+# ```text
+# pagination
+# filtering
+# sorting
+# search
+# ```
+# 
+# Use indexes for fields frequently used for:
+# 
+# - lookup
+# - filtering
+# - joining
+# - unique identification
+# 
+# Do not add indexes blindly.
+# 
+# ---
+# 
+# # 14. API Design
+# 
+# APIs should be predictable and consistent.
+# 
+# For each endpoint define:
+# 
+# - HTTP method
+# - URL
+# - Authentication
+# - Authorization
+# - Request body/query parameters
+# - Validation
+# - Response shape
+# - Error cases
+# 
+# Use consistent responses.
+# 
+# Example:
+# 
+# ```json
+# {
+#   "success": true,
+#   "data": {}
+# }
+# ```
+# 
+# or a similarly consistent project-wide format.
+# 
+# Do not let different endpoints invent unrelated response structures without reason.
+# 
+# ---
+# 
+# # 15. Validation
+# 
+# Validation must happen at both levels:
+# 
+# ```text
+# Frontend validation
+#        +
+# Backend validation
+#        +
+# Database constraints where appropriate
+# ```
+# 
+# Test:
+# 
+# - Empty values
+# - Invalid formats
+# - Out-of-range values
+# - Duplicate values
+# - Invalid dates
+# - Invalid IDs
+# - Invalid state transitions
+# - Unauthorized actions
+# - Malformed requests
+# 
+# Never assume the frontend can be trusted.
+# 
+# ---
+# 
+# # 16. Security
+# 
+# Security is a requirement, not an optional enhancement.
+# 
+# ## Authentication
+# 
+# Never:
+# 
+# - Store plaintext passwords
+# - Expose password hashes to the frontend
+# - Hardcode credentials
+# - Commit secrets
+# - Put secret API keys directly in client code
+# 
+# Use secure password hashing and appropriate session/token handling.
+# 
+# ## Authorization
+# 
+# Every protected backend operation must check permissions.
+# 
+# Example:
+# 
+# ```text
+# Employee
+# → Own profile
+# → Own attendance
+# → Own leave
+# → Own payroll
+# 
+# HR/Admin
+# → All employees
+# → All attendance
+# → Leave approvals
+# → Payroll management
+# ```
+# 
+# Do not rely on hiding a button in the UI as authorization.
+# 
+# The backend must reject unauthorized requests.
+# 
+# ## Input Security
+# 
+# Protect against:
+# 
+# - SQL injection
+# - Improper authorization
+# - IDOR / insecure direct object access
+# - XSS where applicable
+# - Malicious file uploads
+# - Unsafe data rendering
+# - Excessively large requests
+# 
+# Use the framework's safe database mechanisms.
+# 
+# ---
+# 
+# # 17. Business Logic
+# 
+# Business rules belong in a controlled layer.
+# 
+# Example:
+# 
+# ```text
+# Leave Request
+# PENDING
+#    ↓
+# APPROVED / REJECTED
+# ```
+# 
+# The employee cannot approve their own request.
+# 
+# An already approved leave should not silently become rejected through an arbitrary update.
+# 
+# Encode valid transitions explicitly.
+# 
+# ---
+# 
+# # 18. Error Handling
+# 
+# Errors should be predictable and useful.
+# 
+# Every API failure should:
+# 
+# - Return an appropriate HTTP status
+# - Return a safe message
+# - Be logged appropriately
+# - Avoid leaking secrets or internal stack traces
+# 
+# Frontend should turn technical failures into understandable messages.
+# 
+# Bad:
+# 
+# ```text
+# 500 Internal Server Error
+# ```
+# 
+# Better:
+# 
+# ```text
+# We couldn't save the leave request.
+# Please try again.
+# ```
+# 
+# Do not hide failures.
+# 
+# ---
+# 
+# # 19. Debugging Skills
+# 
+# When a bug occurs, do not immediately rewrite code.
+# 
+# Follow:
+# 
+# ```text
+# Reproduce
+#    ↓
+# Observe
+#    ↓
+# Isolate
+#    ↓
+# Identify root cause
+#    ↓
+# Fix
+#    ↓
+# Retest
+#    ↓
+# Check for regression
+# ```
+# 
+# Ask:
+# 
+# - Is the issue frontend?
+# - API?
+# - Authentication?
+# - Authorization?
+# - Validation?
+# - Business logic?
+# - Database?
+# - Integration?
+# - Environment/configuration?
+# 
+# Do not treat symptoms while leaving the root cause.
+# 
+# ---
+# 
+# # 20. AI-Generated Code Rules
+# 
+# AI-generated code must be reviewed before committing.
+# 
+# Never blindly accept generated code.
+# 
+# For every AI-generated change:
+# 
+# 1. Read the code.
+# 2. Understand the logic.
+# 3. Check imports.
+# 4. Check types.
+# 5. Check error handling.
+# 6. Check security.
+# 7. Check database behavior.
+# 8. Check API compatibility.
+# 9. Remove dead code.
+# 10. Run the relevant tests/verification.
+# 
+# Never leave:
+# 
+# - Unused imports
+# - Fake APIs
+# - Static JSON replacing live data
+# - Placeholder functions
+# - TODOs for core requirements
+# - Random comments
+# - Duplicate implementations
+# - Unnecessary libraries
+# 
+# ---
+# 
+# # 21. No Static Mocking of Core Functionality
+# 
+# The application must use the real backend and database for important business flows.
+# 
+# Bad:
+# 
+# ```text
+# Frontend
+#   ↓
+# hardcoded employee array
+# ```
+# 
+# Good:
+# 
+# ```text
+# Frontend
+#   ↓
+# API
+#   ↓
+# PostgreSQL
+# ```
+# 
+# Mock data may be used only for:
+# 
+# - UI development
+# - Temporary component isolation
+# - Non-core visual experimentation
+# 
+# Before final integration, core flows must use real persisted data.
+# 
+# ---
+# 
+# # 22. Performance
+# 
+# Performance should be considered during design, not after the product is finished.
+# 
+# Frontend:
+# 
+# - Avoid unnecessary rerenders
+# - Avoid repeatedly fetching identical data
+# - Lazy-load genuinely heavy features
+# - Keep initial bundle reasonable
+# - Use optimized images/assets
+# - Avoid expensive calculations during render
+# 
+# Backend:
+# 
+# - Avoid unnecessary queries
+# - Paginate large datasets
+# - Validate input before expensive operations
+# - Return only required fields where useful
+# 
+# Database:
+# 
+# - Use appropriate indexes
+# - Avoid N+1 queries
+# - Keep relationships correct
+# 
+# Do not introduce premature optimization that makes the code harder to maintain.
+# 
+# ---
+# 
+# # 23. Scalability
+# 
+# Design for a larger dataset without creating enterprise-level complexity.
+# 
+# Ask:
+# 
+# - What happens with 10 employees?
+# - 1,000 employees?
+# - 100,000 attendance records?
+# - Thousands of leave requests?
+# 
+# Use:
+# 
+# - Pagination
+# - Filtering
+# - Indexing
+# - Clear service boundaries
+# - Stateless API design where practical
+# - Avoidance of unbounded queries
+# 
+# Do not introduce microservices, queues, Redis, Kubernetes, etc. merely for appearance.
+# 
+# The hackathon solution should remain understandable.
+# 
+# ---
+# 
+# # 24. Reliability
+# 
+# Every important action should be safe to retry.
+# 
+# For example:
+# 
+# ```text
+# User clicks Submit
+# ↓
+# Request takes 2 seconds
+# ↓
+# User clicks again
+# ```
+# 
+# Avoid duplicate records.
+# 
+# Disable submit buttons while requests are in flight where appropriate.
+# 
+# Use database constraints and backend checks for important uniqueness rules.
+# 
+# ---
+# 
+# # 25. Attention to Detail
+# 
+# Before declaring a feature finished, inspect:
+# 
+# ## UI
+# 
+# - Spacing
+# - Alignment
+# - Typography
+# - Labels
+# - Empty state
+# - Loading state
+# - Error state
+# - Mobile/responsive behavior
+# - Long names
+# - Large numbers
+# - Missing images
+# - Long text
+# - Date formatting
+# - Currency formatting
+# 
+# ## Logic
+# 
+# - Boundary dates
+# - Duplicate records
+# - Invalid states
+# - Permissions
+# - Refresh behavior
+# - Back navigation
+# - Browser reload
+# - Session expiration
+# 
+# ## Data
+# 
+# - Null values
+# - Missing relationships
+# - Duplicate records
+# - Deleted records
+# - Stale records
+# 
+# ---
+# 
+# # 26. Testing Strategy
+# 
+# At minimum test:
+# 
+# ## Authentication
+# 
+# - Valid login
+# - Invalid login
+# - Duplicate registration
+# - Invalid email
+# - Weak password
+# - Unverified email
+# - Logout
+# 
+# ## Authorization
+# 
+# - Employee accessing own data
+# - Employee accessing another employee's data
+# - Employee calling HR endpoint
+# - HR accessing employee data
+# 
+# ## Attendance
+# 
+# - Check in
+# - Check out
+# - Duplicate check in
+# - Check out without check in
+# - Daily view
+# - Weekly view
+# 
+# ## Leave
+# 
+# - Valid request
+# - Invalid dates
+# - Empty request
+# - Pending state
+# - Approval
+# - Rejection
+# - Unauthorized approval
+# - Already finalized request
+# 
+# ## Payroll
+# 
+# - Employee read-only access
+# - HR read access
+# - HR update
+# - Employee attempting update
+# 
+# ## Integration
+# 
+# Every major workflow must work:
+# 
+# ```text
+# UI
+# → API
+# → Database
+# → API
+# → UI
+# ```
+# 
+# ---
+# 
+# # 27. Git and Contribution Rules
+# 
+# All four members must make genuine contributions from their own GitHub accounts.
+# 
+# Do not create fake commits to inflate numbers.
+# 
+# Do not split meaningless changes solely to increase commit count.
+# 
+# Commits should represent logical work units.
+# 
+# Good:
+# 
+# ```text
+# feat: add leave request workflow
+# feat: add attendance API
+# feat: add HR employee directory
+# fix: prevent duplicate check-in
+# ```
+# 
+# Bad:
+# 
+# ```text
+# change button
+# change button again
+# fix text
+# fix spacing
+# test
+# test2
+# ```
+# 
+# Before the final code freeze:
+# 
+# - All meaningful work merged
+# - Working `main` branch
+# - No broken features from unfinished branches
+# - All four members have meaningful history
+# 
+# ---
+# 
+# # 28. Commit Quality
+# 
+# Prefer atomic commits.
+# 
+# Each commit should:
+# 
+# - Have a clear purpose
+# - Be understandable
+# - Avoid unrelated changes
+# - Keep the project runnable whenever practical
+# 
+# Do not commit secrets.
+# 
+# Do not commit:
+# 
+# ```text
+# .env
+# API keys
+# passwords
+# tokens
+# private certificates
+# ```
+# 
+# Commit:
+# 
+# ```text
+# .env.example
+# ```
+# 
+# with placeholders.
+# 
+# ---
+# 
+# # 29. Pull Request / Merge Discipline
+# 
+# Before merging:
+# 
+# 1. Pull/rebase from current development branch as appropriate.
+# 2. Resolve conflicts carefully.
+# 3. Verify imports and routes.
+# 4. Run relevant checks.
+# 5. Verify API compatibility.
+# 6. Review database changes.
+# 7. Confirm the feature still works end-to-end.
+# 
+# Avoid large uncontrolled merges near the deadline.
+# 
+# ---
+# 
+# # 30. Documentation
+# 
+# Maintain a useful README.
+# 
+# It should include:
+# 
+# - Problem solved
+# - Features
+# - Architecture
+# - Tech stack
+# - Database overview
+# - Setup
+# - Environment variables
+# - Run commands
+# - API overview
+# - Demo credentials if appropriate
+# - Known assumptions
+# 
+# Keep documentation aligned with the actual code.
+# 
+# Never document features that do not exist.
+# 
+# ---
+# 
+# # 31. Hackathon Time Management
+# 
+# The hackathon manual defines a tactical flow:
+# 
+# ```text
+# 08:30–09:15
+# Problem decomposition + ER diagram + API freeze
+# 
+# 09:15–13:00
+# Core MVP CRUD
+# 
+# 13:00–15:30
+# Integration + polish
+# 
+# 15:30–16:45
+# Testing + README + final fixes
+# 
+# 16:45
+# Code freeze
+# ```
+# 
+# Treat the core workflow as non-negotiable.
+# 
+# Do not spend early hours on animations or advanced analytics while the database and API are incomplete.
+# 
+# ---
+# 
+# # 32. Dayflow-Specific Priorities
+# 
+# For the Dayflow HRMS problem, prioritize:
+# 
+# ## P0
+# 
+# - Authentication
+# - Role-based access
+# - Employee dashboard
+# - HR/Admin dashboard
+# - Employee profile
+# - Attendance
+# - Check-in/check-out
+# - Leave application
+# - Leave approval/rejection
+# - Payroll visibility
+# - Salary structure update
+# - Client + server validation
+# - PostgreSQL persistence
+# 
+# ## P1
+# 
+# - Employee 360
+# - HR Action Center
+# - Leave balance/calendar
+# - Attendance correction workflow
+# - Notifications
+# - Audit trail
+# - Search/filtering
+# - Workforce analytics
+# 
+# ## P2
+# 
+# - Advanced email infrastructure
+# - Complex payroll calculations
+# - Advanced reporting
+# - AI chatbot
+# - Complex real-time infrastructure
+# - Unnecessary external integrations
+# 
+# Do not build P1/P2 while P0 is unstable.
+# 
+# ---
+# 
+# # 33. Dayflow Core Workflow
+# 
+# The strongest end-to-end demonstration should be:
+# 
+# ```text
+# Employee Login
+#       ↓
+# Employee Dashboard
+#       ↓
+# Apply Leave
+#       ↓
+# Leave = PENDING
+#       ↓
+# HR Login
+#       ↓
+# HR sees Leave Request
+#       ↓
+# Approve / Reject + Comment
+#       ↓
+# Employee sees updated status
+#       ↓
+# Database reflects mutation
+# ```
+# 
+# The system must demonstrate the entire chain using real persisted data.
+# 
+# ---
+# 
+# # 34. Demo Awareness
+# 
+# Every feature should be easy to explain.
+# 
+# Prefer features that demonstrate multiple engineering concepts at once.
+# 
+# Example:
+# 
+# ```text
+# Leave approval
+# ```
+# 
+# demonstrates:
+# 
+# - Authentication
+# - Authorization
+# - UI
+# - Form validation
+# - API
+# - Business logic
+# - Status lifecycle
+# - Database relationships
+# - Persistence
+# - Multi-role workflow
+# 
+# These high-leverage features deserve priority.
+# 
+# ---
+# 
+# # 35. Final Engineering Review
+# 
+# Before code freeze, perform this audit.
+# 
+# ## Coding Standards
+# 
+# - [ ] No obvious dead code
+# - [ ] No unnecessary libraries
+# - [ ] No unused imports
+# - [ ] Naming is clear
+# - [ ] Functions/components have reasonable size
+# - [ ] Responsibilities are separated
+# 
+# ## Logic
+# 
+# - [ ] Core workflows work
+# - [ ] State transitions are valid
+# - [ ] Business rules are enforced server-side
+# - [ ] Error cases are handled
+# 
+# ## Modularity
+# 
+# - [ ] Reusable components are used
+# - [ ] API logic is centralized
+# - [ ] Backend business logic is separated
+# - [ ] No unnecessary duplication
+# 
+# ## Frontend
+# 
+# - [ ] Responsive
+# - [ ] Consistent design
+# - [ ] Loading states
+# - [ ] Empty states
+# - [ ] Error states
+# - [ ] Success feedback
+# - [ ] Accessible forms
+# 
+# ## Performance
+# 
+# - [ ] No obvious N+1 queries
+# - [ ] Lists are paginated where necessary
+# - [ ] No excessive API calls
+# - [ ] No unnecessary rerenders
+# - [ ] Database indexes are appropriate
+# 
+# ## Scalability
+# 
+# - [ ] Large lists will not load everything
+# - [ ] Database relationships are sound
+# - [ ] No hardcoded data assumptions
+# 
+# ## Security
+# 
+# - [ ] Passwords are hashed
+# - [ ] Secrets are not committed
+# - [ ] Authorization is enforced server-side
+# - [ ] User input is validated
+# - [ ] Employees cannot access unauthorized records
+# - [ ] Sensitive errors are not exposed
+# 
+# ## Usability
+# 
+# - [ ] User understands what to do
+# - [ ] Forms are clear
+# - [ ] Feedback is immediate
+# - [ ] Error messages are actionable
+# - [ ] Important actions are easy to find
+# 
+# ## Debugging
+# 
+# - [ ] Core workflows tested
+# - [ ] Edge cases checked
+# - [ ] Console errors removed
+# - [ ] API errors handled
+# - [ ] Refresh/reload tested
+# 
+# ## Database
+# 
+# - [ ] Correct relationships
+# - [ ] Foreign keys
+# - [ ] Unique constraints
+# - [ ] Appropriate indexes
+# - [ ] No unnecessary duplicated data
+# - [ ] Seed data is realistic
+# 
+# ## Problem Statement
+# 
+# - [ ] Every required feature is covered
+# - [ ] Nothing critical was skipped
+# - [ ] Additional features support the actual problem
+# - [ ] Future enhancements did not replace core requirements
+# 
+# ## Attention to Detail
+# 
+# - [ ] Dates correct
+# - [ ] Currency correct
+# - [ ] Status labels correct
+# - [ ] Long text handled
+# - [ ] Empty results handled
+# - [ ] Error cases handled
+# - [ ] Mobile/responsive layout checked
+# 
+# ## GitHub
+# 
+# - [ ] All four members have genuine commits
+# - [ ] Commit history reflects real work
+# - [ ] No secrets committed
+# - [ ] `main` is stable
+# - [ ] Final changes pushed before code freeze
+# 
+# ---
+# 
+# 
+# ---
+# 
+# # 37. Team Contribution Equity and Private Team Mapping
+# 
+# The hackathon team has four GitHub identities:
+# 
+# ```text
+# Gamechanger326
+# Tejashwii
+# bhagmpriyal123-bot
+# deveshkolte
+# ```
+# 
+# These identities must be treated as four equal contributors.
+# 
+# ## Contribution Principle
+# 
+# The repository should show a **balanced and credible contribution history** across all four members.
+# 
+# Do not optimize for a high raw commit count by creating meaningless commits.
+# 
+# Instead, ensure that:
+# 
+# - All four members make genuine commits.
+# - All four members contribute throughout the development period.
+# - No single member becomes responsible for nearly all implementation.
+# - Commit volume should remain reasonably balanced.
+# - Commit size should remain reasonably balanced.
+# - Each member should own meaningful functionality.
+# - Integration, bug fixes and quality improvements should also be distributed.
+# - No member should be used only for documentation or trivial changes.
+# - No artificial commits should be created solely to increase the count.
+# 
+# A reasonable target is to keep the total number of meaningful commits per member within a similar range. The exact number is not a hard requirement; contribution quality and actual ownership are more important.
+# 
+# ## Private Role Assignment
+# 
+# The exact mapping between GitHub identity and role should be maintained in a local, non-committed file:
+# 
+# ```text
+# .team-local.md
+# ```
+# 
+# This file is private to the team and must NOT be pushed to GitHub.
+# 
+# Example local contents:
+# 
+# ```text
+# Gamechanger326       → [assigned role]
+# Tejashwii            → [assigned role]
+# bhagmpriyal123-bot   → [assigned role]
+# deveshkolte          → [assigned role]
+# ```
+# 
+# Do not put private team assignment information into committed source files merely to document who owns which part.
+# 
+# ## Role Ownership
+# 
+# Roles should still be divided into substantial ownership areas, for example:
+# 
+# ```text
+# Employee Experience
+# HR/Admin Experience
+# Backend + Database
+# Integration + QA + Demo
+# ```
+# 
+# However, ownership must not become isolation.
+# 
+# Members should each contribute:
+# 
+# - Feature implementation
+# - Bug fixes
+# - Integration
+# - Testing
+# - Refinement
+# - Code review where appropriate
+# 
+# The goal is a naturally balanced Git history.
+# 
+# ## Commit Review
+# 
+# Before code freeze, check:
+# 
+# ```text
+# Member 1 → meaningful commits + feature ownership
+# Member 2 → meaningful commits + feature ownership
+# Member 3 → meaningful commits + feature ownership
+# Member 4 → meaningful commits + feature ownership
+# ```
+# 
+# If one member is significantly behind, assign that member a real remaining engineering task rather than creating artificial commits.
+# 
+# Never make empty, cosmetic or meaningless commits simply to equalize the numbers.
+# 
+# ---
+# 
+# # 38. Private Team Files
+# 
+# The following local files are team-internal and should not be committed:
+# 
+# ```text
+# .team-local.md
+# ```
+# 
+# The purpose of these files is to keep private contribution mapping, internal assignment notes, or temporary coordination details outside the public repository.
+# 
+# Do not store credentials, tokens, passwords or secrets in these files either.
+# 
+# # 39. YAGNI Before Planning
+# 
+# Before planning or implementing any feature, apply **YAGNI — You Aren't Gonna Need It**.
+# 
+# Do not design or build functionality merely because:
+# 
+# - It might be useful later.
+# - It is technically interesting.
+# - Another product has it.
+# - The AI can easily generate it.
+# - It would make the architecture look more sophisticated.
+# - It may be useful at an unknown future scale.
+# 
+# Only include a feature when there is a current, defensible reason based on:
+# 
+# 1. The problem statement.
+# 2. A necessary business rule.
+# 3. A required user workflow.
+# 4. A clear reliability/security/performance requirement.
+# 5. A small addition that substantially improves the core product without creating disproportionate complexity.
+# 
+# For every proposed feature, explicitly answer:
+# 
+# ```text
+# Why is this needed now?
+# What requirement does it satisfy?
+# What user/business problem does it solve?
+# What complexity does it introduce?
+# Can the product work correctly without it?
+# ```
+# 
+# If the product works correctly without the feature and the feature is not important to the current scope, do not build it.
+# 
+# YAGNI applies to:
+# 
+# - Features
+# - APIs
+# - Database tables
+# - Database fields
+# - Dependencies
+# - Services
+# - Abstractions
+# - Infrastructure
+# - Design patterns
+# - Background jobs
+# - Caching
+# - Real-time systems
+# - Third-party integrations
+# 
+# Prefer the simplest architecture that satisfies the current requirement.
+# 
+# ---
+# 
+# # 40. Explain Before Coding
+# 
+# **Never begin substantial coding immediately after receiving a feature request.**
+# 
+# Before writing or modifying code, the AI must first explain the proposed implementation.
+# 
+# The explanation must be concise enough to be useful during the hackathon but detailed enough for the team to understand what will change.
+# 
+# For every non-trivial coding task, provide:
+# 
+# ## 1. Requirement Understanding
+# 
+# State:
+# 
+# ```text
+# What the user wants
+# What problem it solves
+# What existing requirement it connects to
+# ```
+# 
+# ## 2. Current-Code Understanding
+# 
+# Before proposing changes, inspect the relevant existing implementation and explain:
+# 
+# - Which files/components/modules are involved.
+# - How the current flow works.
+# - What can be reused.
+# - What is currently missing or incorrect.
+# 
+# Do not invent the existing architecture.
+# 
+# ## 3. Proposed Logic
+# 
+# Explain the flow in plain language:
+# 
+# ```text
+# User action
+# → validation
+# → API
+# → business logic
+# → database
+# → response
+# → UI update
+# ```
+# 
+# For workflows, explain all important state transitions.
+# 
+# ## 4. Files to Change
+# 
+# List the expected files/modules:
+# 
+# ```text
+# CREATE:
+# - ...
+# 
+# MODIFY:
+# - ...
+# 
+# DELETE:
+# - ...
+# 
+# NO CHANGE:
+# - ...
+# ```
+# 
+# Do not modify unrelated files.
+# 
+# ## 5. Data/API Changes
+# 
+# If applicable, explain:
+# 
+# - New/modified database tables
+# - New/modified fields
+# - Relationships
+# - Constraints
+# - API endpoints
+# - Request/response shapes
+# - Authorization requirements
+# 
+# ## 6. Edge Cases
+# 
+# Before coding, identify the important failure cases.
+# 
+# Examples:
+# 
+# - Empty input
+# - Invalid input
+# - Duplicate submission
+# - Missing record
+# - Unauthorized user
+# - Invalid status transition
+# - API failure
+# - Database failure
+# - Concurrent update
+# 
+# ## 7. Security and Performance Impact
+# 
+# State whether the change introduces or affects:
+# 
+# - Authorization
+# - Sensitive data
+# - Input validation
+# - Query complexity
+# - Index requirements
+# - Large payloads
+# - Repeated API calls
+# - Caching needs
+# 
+# Do not introduce optimizations without a demonstrated need.
+# 
+# ## 8. Implementation Plan
+# 
+# Give a short ordered sequence:
+# 
+# ```text
+# 1. ...
+# 2. ...
+# 3. ...
+# 4. ...
+# ```
+# 
+# Only after this explanation should coding begin.
+# 
+# ---
+# 
+# # 41. Mandatory Pre-Coding Gate
+# 
+# Use this sequence for every significant task:
+# 
+# ```text
+# REQUEST
+#    ↓
+# READ REQUIREMENT
+#    ↓
+# YAGNI CHECK
+#    ↓
+# INSPECT EXISTING CODE
+#    ↓
+# EXPLAIN CURRENT STATE
+#    ↓
+# PROPOSE LOGIC
+#    ↓
+# LIST CHANGES
+#    ↓
+# IDENTIFY EDGE CASES
+#    ↓
+# TEAM/USER CONFIRMS PLAN
+#    ↓
+# IMPLEMENT
+#    ↓
+# VERIFY
+# ```
+# 
+# The AI must not skip directly from REQUEST → CODE for substantial features.
+# 
+# For tiny, obvious changes such as a typo fix or one-line configuration correction, the explanation may be brief.
+# 
+# ---
+# 
+# # 42. Explain the Code After Coding
+# 
+# After implementation, do not simply say:
+# 
+# > "Done."
+# 
+# Explain what was implemented.
+# 
+# For each significant change, provide:
+# 
+# ```text
+# What changed
+# Why it changed
+# How the logic works
+# What files were affected
+# What was reused
+# What was intentionally not changed
+# How it was verified
+# ```
+# 
+# Also identify any assumptions made.
+# 
+# If there are known limitations, state them clearly rather than hiding them.
+# 
+# ---
+# 
+# # 43. Code Review Mode
+# 
+# When reviewing existing code, do not immediately rewrite it.
+# 
+# First classify findings:
+# 
+# ```text
+# CRITICAL
+# HIGH
+# MEDIUM
+# LOW
+# IMPROVEMENT
+# ```
+# 
+# Focus first on:
+# 
+# - Incorrect business logic
+# - Security vulnerabilities
+# - Data corruption risk
+# - Broken authorization
+# - Performance bottlenecks
+# - Reliability problems
+# - Bugs affecting core workflows
+# 
+# Do not refactor working code purely for stylistic preference during the hackathon.
+# 
+# Apply YAGNI to refactoring as well.
+# 
+# 
+# # 36. Final Rule
+# 
+# When choosing between:
+# 
+# ```text
+# A complex feature that looks impressive
+# ```
+# 
+# and:
+# 
+# ```text
+# A simple feature that works perfectly
+# ```
+# 
+# choose the second one.
+# 
+# When choosing between:
+# 
+# ```text
+# More features
+# ```
+# 
+# and:
+# 
+# ```text
+# Better correctness, security, usability and polish
+# ```
+# 
+# choose the second one.
+# 
+# When using AI, never ask:
+# 
+# > "Can you generate more code?"
+# 
+# Ask:
+# 
+# > "What is the simplest, safest and most maintainable implementation that fully satisfies this requirement?"
+# 
+# Build a product that an evaluator can understand in seconds, trust after five minutes, and inspect technically without finding obvious shortcuts.
