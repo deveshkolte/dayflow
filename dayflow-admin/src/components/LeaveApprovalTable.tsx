@@ -33,15 +33,15 @@ export function LeaveApprovalTable() {
       const matchesStatus = statusFilter === "all" || req.status === statusFilter;
       const matchesType = typeFilter === "all" || req.type === typeFilter;
       const matchesSearch =
-        req.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.remarks.toLowerCase().includes(searchQuery.toLowerCase());
+        (req.employeeName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (req.remarks || req.reason || "").toLowerCase().includes(searchQuery.toLowerCase());
       return matchesStatus && matchesType && matchesSearch;
     });
   }, [leaveRequests, statusFilter, typeFilter, searchQuery]);
 
-  const pendingCount = leaveRequests.filter((r) => r.status === "Pending").length;
-  const approvedCount = leaveRequests.filter((r) => r.status === "Approved").length;
-  const rejectedCount = leaveRequests.filter((r) => r.status === "Rejected").length;
+  const pendingCount = leaveRequests.filter((r) => (r.status as string) === "PENDING" || (r.status as string) === "Pending").length;
+  const approvedCount = leaveRequests.filter((r) => (r.status as string) === "APPROVED" || (r.status as string) === "Approved").length;
+  const rejectedCount = leaveRequests.filter((r) => (r.status as string) === "REJECTED" || (r.status as string) === "Rejected").length;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -71,7 +71,7 @@ export function LeaveApprovalTable() {
 
   const handleConfirm = () => {
     if (!dialogState.request) return;
-    const newStatus = dialogState.action === "approve" ? "Approved" : "Rejected";
+    const newStatus = dialogState.action === "approve" ? "APPROVED" : "REJECTED";
 
     setLeaveRequests((prev) =>
       prev.map((req) =>
@@ -209,13 +209,13 @@ export function LeaveApprovalTable() {
               ) : (
                 filteredRequests.map((req) => {
                   const emp = mockEmployees.find((e) => e.employeeId === req.employeeId);
-                  const isPending = req.status === "Pending";
+                  const isPending = (req.status as string) === "PENDING" || (req.status as string) === "Pending";
                   return (
                     <TableRow key={req.id} className={isPending ? "bg-[#9F7E4A]/5 hover:bg-[#9F7E4A]/10 border-b border-[#DED9CF]" : "hover:bg-[#F7F6F1]/50 border-b border-[#DED9CF]/60"}>
                       <TableCell className="py-3.5">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8 border border-[#9F7E4A]/50">
-                            <AvatarImage src={emp?.profilePictureUrl} alt={req.employeeName} />
+                            <AvatarImage src={emp?.profilePictureUrl || undefined} alt={req.employeeName} />
                             <AvatarFallback className="bg-[#454F2D] text-white text-xs font-bold">
                               {req.employeeName.substring(0, 2).toUpperCase()}
                             </AvatarFallback>

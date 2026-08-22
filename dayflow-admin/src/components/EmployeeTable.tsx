@@ -177,8 +177,14 @@ export function EmployeeTable() {
   // Compute net salary from the new shape
   function netSalary(emp: Employee) {
     if (!emp.salaryStructure) return null;
-    const allowancesSum = Object.values(emp.salaryStructure.allowances).reduce((a, b) => a + b, 0);
-    return emp.salaryStructure.baseSalary + allowancesSum;
+    if (emp.salaryStructure.netSalary) return emp.salaryStructure.netSalary;
+    const base = emp.salaryStructure.baseSalary ?? emp.salaryStructure.basic ?? 0;
+    const allowancesSum = typeof emp.salaryStructure.allowances === "number"
+      ? emp.salaryStructure.allowances
+      : typeof emp.salaryStructure.allowances === "object" && emp.salaryStructure.allowances
+        ? Object.values(emp.salaryStructure.allowances).reduce((a: number, b: number) => a + b, 0)
+        : 0;
+    return base + allowancesSum;
   }
 
   return (
@@ -439,9 +445,9 @@ export function EmployeeTable() {
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="p-2 rounded-xl bg-white border border-[#DED9CF]">
                       <span className="text-[10px] text-[#6D6A61] block">Base Salary</span>
-                      <strong className="text-xs text-[#534332]">₹{viewingEmployee.salaryStructure.baseSalary.toLocaleString("en-IN")}</strong>
+                      <strong className="text-xs text-[#534332]">₹{(viewingEmployee.salaryStructure.baseSalary ?? viewingEmployee.salaryStructure.basic ?? 0).toLocaleString("en-IN")}</strong>
                     </div>
-                    {Object.entries(viewingEmployee.salaryStructure.allowances).map(([k, v]) => (
+                    {typeof viewingEmployee.salaryStructure.allowances === "object" && viewingEmployee.salaryStructure.allowances && Object.entries(viewingEmployee.salaryStructure.allowances).map(([k, v]) => (
                       <div key={k} className="p-2 rounded-xl bg-white border border-[#DED9CF]">
                         <span className="text-[10px] text-[#6D6A61] block">{k}</span>
                         <strong className="text-xs text-[#534332]">₹{v.toLocaleString("en-IN")}</strong>

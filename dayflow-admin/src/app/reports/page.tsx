@@ -35,7 +35,7 @@ export default function ReportsPage() {
 
   // Attendance rate
   const totalLogs = mockAttendance.length;
-  const presentLogs = mockAttendance.filter((a) => a.status === "Present").length;
+  const presentLogs = mockAttendance.filter((a) => (a.status as string) === "PRESENT" || (a.status as string) === "Present").length;
   const attendancePercentage = Math.round((presentLogs / (totalLogs || 1)) * 100);
 
   const handleExportCSV = (reportType: string) => {
@@ -126,7 +126,7 @@ export default function ReportsPage() {
           </div>
           <div className="text-3xl font-bold font-display text-[#534332] mt-2">{mockLeaveRequests.length}</div>
           <p className="text-[11px] text-[#6D6A61] mt-3 font-medium">
-            {mockLeaveRequests.filter((l) => l.status === "Approved").length} approved • {mockLeaveRequests.filter((l) => l.status === "Pending").length} pending
+            {mockLeaveRequests.filter((l) => (l.status as string) === "APPROVED" || (l.status as string) === "Approved").length} approved • {mockLeaveRequests.filter((l) => (l.status as string) === "PENDING" || (l.status as string) === "Pending").length} pending
           </p>
         </Card>
 

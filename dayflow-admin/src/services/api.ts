@@ -10,6 +10,8 @@ import type {
   AttendanceFilters,
 } from "@/types";
 
+// Base URL for the NestJS backend API. Uses NEXT_PUBLIC_API_URL if set (e.g. deployed Vercel backend),
+// otherwise defaults to local NestJS backend at http://localhost:4000/api for local development.
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 const TOKEN_KEY = "dayflow_admin_token";
 const USER_KEY = "dayflow_admin_user";
@@ -194,6 +196,7 @@ export async function updateSalaryStructure(
 }
 
 // ─── Backwards Compatibility Aliases ──────────────────────────────────────────
+export const clearAccessToken = clearSession;
 export const getAdminEmployees = getEmployees;
 export const updateAdminEmployee = (id: string, updates: { status?: string; isActive?: boolean }) =>
   updateEmployee(id, { isActive: updates.status ? updates.status === "active" : updates.isActive });

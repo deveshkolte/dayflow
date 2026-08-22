@@ -9,10 +9,14 @@ export interface AuthenticatedUser {
 }
 
 export interface SalaryStructure {
-  baseSalary: number;
-  allowances: Record<string, number>;
-  effectiveFrom: string;
-  effectiveTo: string | null;
+  baseSalary?: number;
+  basic?: number;
+  hra?: number;
+  allowances?: Record<string, number> | number;
+  deductions?: Record<string, number> | number;
+  netSalary?: number;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
 }
 
 export interface Document {
@@ -26,17 +30,20 @@ export interface Employee {
   id: string;
   employeeId: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   fullName: string;
-  phone: string | null;
-  address: string | null;
-  department: string | null;
-  jobTitle: string | null;
-  role: "EMPLOYEE" | "HR" | "ADMIN";
-  isActive: boolean;
-  profilePictureUrl: string | null;
-  createdAt: string;
+  phone?: string | null;
+  address?: string | null;
+  department?: string | null;
+  jobTitle?: string | null;
+  designation?: string | null;
+  role: "EMPLOYEE" | "HR" | "ADMIN" | "employee" | "admin" | "hr";
+  isActive?: boolean;
+  status?: "active" | "suspended";
+  profilePictureUrl?: string | null;
+  createdAt?: string;
+  joiningDate?: string;
   documents: Document[];
   salaryStructure: SalaryStructure | null;
 }
@@ -48,8 +55,8 @@ export interface Attendance {
   date: string;        // YYYY-MM-DD
   checkIn: string | null;
   checkOut: string | null;
-  status: "PRESENT" | "ABSENT" | "HALF_DAY" | "LEAVE";
-  notes: string | null;
+  status: "PRESENT" | "ABSENT" | "HALF_DAY" | "LEAVE" | "Present" | "Absent" | "Half-day" | "Leave";
+  notes?: string | null;
 }
 
 export interface LeaveRequest {
@@ -58,36 +65,40 @@ export interface LeaveRequest {
   employeeId: string;
   employeeName: string;
   email?: string;
-  type: "PAID" | "SICK" | "UNPAID" | "CASUAL" | "EMERGENCY";
+  type: "PAID" | "SICK" | "UNPAID" | "CASUAL" | "EMERGENCY" | "Paid" | "Sick" | "Unpaid" | "Casual" | "Emergency";
   leaveType?: string;
   startDate: string;   // YYYY-MM-DD
   endDate: string;     // YYYY-MM-DD
-  status: "PENDING" | "APPROVED" | "REJECTED";
-  reason: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "Pending" | "Approved" | "Rejected";
+  reason?: string;
   remarks?: string;
-  approverComment: string | null;
-  adminComment: string | null;
-  approverName: string | null;
-  createdAt: string;
+  approverComment?: string | null;
+  adminComment?: string | null;
+  approverName?: string | null;
+  createdAt?: string;
   appliedOn?: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface PayrollRecord {
   id: string;
   employeeId: string;
   employeeName: string;
-  month: string;
-  year: number;
-  baseSalary: number;
-  allowances: Record<string, number>;
-  deductions: Record<string, number>;
-  netSalary: number;
-  status: "PENDING" | "PAID" | "PROCESSED";
-  paidAt: string | null;
-  createdAt: string;
+  month?: string;
+  year?: number;
+  baseSalary?: number;
+  basic?: number;
+  hra?: number;
+  allowances?: Record<string, number> | number;
+  deductions?: Record<string, number> | number;
+  netSalary?: number;
+  status: "PENDING" | "PAID" | "PROCESSED" | "Paid" | "Pending";
+  paidAt?: string | null;
+  createdAt?: string;
   department?: string;
 }
+
+export type Payroll = PayrollRecord;
 
 export interface AttendanceFilters {
   date?: string;

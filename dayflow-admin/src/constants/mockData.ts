@@ -288,11 +288,11 @@ export const mockPayroll: Payroll[] = mockEmployees.map((emp, index) => {
     employeeId: emp.employeeId,
     employeeName: emp.fullName,
     month: "August 2026",
-    basic: emp.salaryStructure.basic,
-    hra: emp.salaryStructure.hra,
-    allowances: emp.salaryStructure.allowances,
-    deductions: emp.salaryStructure.deductions,
-    netSalary: emp.salaryStructure.netSalary,
+    basic: emp.salaryStructure?.basic ?? 50000,
+    hra: emp.salaryStructure?.hra ?? 20000,
+    allowances: emp.salaryStructure?.allowances ?? 10000,
+    deductions: emp.salaryStructure?.deductions ?? 5000,
+    netSalary: emp.salaryStructure?.netSalary ?? 75000,
     status: isPending ? "Pending" : "Paid",
   };
 });

@@ -110,10 +110,10 @@ export function AttendanceTable() {
   }, [enrichedAttendance, searchQuery, dateFilter, statusFilter]);
 
   // Metrics for active date
-  const presentCount = filteredAttendance.filter((a) => a.status === "Present").length;
-  const absentCount = filteredAttendance.filter((a) => a.status === "Absent").length;
-  const halfDayCount = filteredAttendance.filter((a) => a.status === "Half-day").length;
-  const leaveCount = filteredAttendance.filter((a) => a.status === "Leave").length;
+  const presentCount = filteredAttendance.filter((a) => (a.status as string) === "PRESENT" || (a.status as string) === "Present").length;
+  const absentCount = filteredAttendance.filter((a) => (a.status as string) === "ABSENT" || (a.status as string) === "Absent").length;
+  const halfDayCount = filteredAttendance.filter((a) => (a.status as string) === "HALF_DAY" || (a.status as string) === "Half-day").length;
+  const leaveCount = filteredAttendance.filter((a) => (a.status as string) === "LEAVE" || (a.status as string) === "Leave").length;
 
   const handleManualMark = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,9 +121,10 @@ export function AttendanceTable() {
       id: `att-manual-${Date.now()}`,
       employeeId: manualForm.employeeId,
       date: `${manualForm.date}T00:00:00Z`,
-      checkIn: manualForm.status === "Absent" || manualForm.status === "Leave" ? null : manualForm.checkIn,
-      checkOut: manualForm.status === "Absent" || manualForm.status === "Leave" ? null : manualForm.checkOut,
+      checkIn: (manualForm.status as string) === "ABSENT" || (manualForm.status as string) === "LEAVE" || (manualForm.status as string) === "Absent" || (manualForm.status as string) === "Leave" ? null : manualForm.checkIn,
+      checkOut: (manualForm.status as string) === "ABSENT" || (manualForm.status as string) === "LEAVE" || (manualForm.status as string) === "Absent" || (manualForm.status as string) === "Leave" ? null : manualForm.checkOut,
       status: manualForm.status,
+      notes: null,
     };
 
     setAttendanceList((prev) => [newRecord, ...prev]);
@@ -258,7 +259,7 @@ export function AttendanceTable() {
                       {record.employee ? (
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8 border border-[#9F7E4A]/50">
-                            <AvatarImage src={record.employee.profilePictureUrl} alt={record.employee.fullName} />
+                            <AvatarImage src={record.employee.profilePictureUrl || undefined} alt={record.employee.fullName} />
                             <AvatarFallback className="bg-[#454F2D] text-white text-xs font-bold">
                               {record.employee.fullName.substring(0, 2).toUpperCase()}
                             </AvatarFallback>
@@ -354,7 +355,7 @@ export function AttendanceTable() {
               </Select>
             </div>
 
-            {manualForm.status !== "Absent" && manualForm.status !== "Leave" && (
+            {(manualForm.status as string) !== "Absent" && (manualForm.status as string) !== "Leave" && (manualForm.status as string) !== "ABSENT" && (manualForm.status as string) !== "LEAVE" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="font-bold text-[#534332]">Check-In Time</label>
